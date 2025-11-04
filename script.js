@@ -1,0 +1,210 @@
+// 성경 구절 데이터 (한국어)
+const bibleVerses = [
+    {
+        text: "여호와는 나의 목자시니 내게 부족함이 없으리로다",
+        reference: "시편 23:1"
+    },
+    {
+        text: "주께서 내게 명령하신 것이니 강하고 담대하라 두려워하지 말며 놀라지 말라 네가 어디로 가든지 네 하나님 여호와가 너와 함께 하느니라",
+        reference: "여호수아 1:9"
+    },
+    {
+        text: "너희 염려를 다 주께 맡기라 이는 그가 너희를 돌보심이라",
+        reference: "베드로전서 5:7"
+    },
+    {
+        text: "내가 산을 향하여 눈을 들리라 나의 도움이 어디서 올까 나의 도움은 천지를 지으신 여호와에게서로다",
+        reference: "시편 121:1-2"
+    },
+    {
+        text: "수고하고 무거운 짐 진 자들아 다 내게로 오라 내가 너희를 쉬게 하리라",
+        reference: "마태복음 11:28"
+    },
+    {
+        text: "내가 강건하든지 곤고하든지 모든 일에 처할 줄 아는 일체의 비결을 배웠노라",
+        reference: "빌립보서 4:12"
+    },
+    {
+        text: "하나님이 세상을 이처럼 사랑하사 독생자를 주셨으니 이는 그를 믿는 자마다 멸망하지 않고 영생을 얻게 하려 하심이라",
+        reference: "요한복음 3:16"
+    },
+    {
+        text: "범사에 감사하라 이것이 그리스도 예수 안에서 너희를 향하신 하나님의 뜻이니라",
+        reference: "데살로니가전서 5:18"
+    },
+    {
+        text: "그런즉 믿음, 소망, 사랑, 이 세 가지는 항상 있을 것인데 그 중의 제일은 사랑이라",
+        reference: "고린도전서 13:13"
+    },
+    {
+        text: "주 안에서 항상 기뻐하라 내가 다시 말하노니 기뻐하라",
+        reference: "빌립보서 4:4"
+    },
+    {
+        text: "평강의 하나님이 친히 너희를 온전히 거룩하게 하시고",
+        reference: "데살로니가전서 5:23"
+    },
+    {
+        text: "너는 마음을 다하여 여호와를 신뢰하고 네 명철을 의지하지 말라",
+        reference: "잠언 3:5"
+    },
+    {
+        text: "내가 세상 끝날까지 너희와 항상 함께 있으리라",
+        reference: "마태복음 28:20"
+    },
+    {
+        text: "하나님이 우리에게 주신 것은 두려워하는 마음이 아니요 오직 능력과 사랑과 절제하는 마음이니",
+        reference: "디모데후서 1:7"
+    },
+    {
+        text: "너희가 내 안에 거하고 내 말이 너희 안에 거하면 무엇이든지 원하는 대로 구하라 그리하면 이루리라",
+        reference: "요한복음 15:7"
+    },
+    {
+        text: "그러므로 우리가 믿음으로 의롭다 하심을 받았으니 우리 주 예수 그리스도로 말미암아 하나님과 화평을 누리자",
+        reference: "로마서 5:1"
+    },
+    {
+        text: "내게 능력 주시는 자 안에서 내가 모든 것을 할 수 있느니라",
+        reference: "빌립보서 4:13"
+    },
+    {
+        text: "여호와를 기뻐하는 것이 너희의 힘이니라",
+        reference: "느헤미야 8:10"
+    },
+    {
+        text: "사랑하는 자들아 우리가 서로 사랑하자 사랑은 하나님께 속한 것이니",
+        reference: "요한일서 4:7"
+    },
+    {
+        text: "너희는 먼저 그의 나라와 그의 의를 구하라 그리하면 이 모든 것을 너희에게 더하시리라",
+        reference: "마태복음 6:33"
+    },
+    {
+        text: "보라 내가 문 밖에 서서 두드리노니 누구든지 내 음성을 듣고 문을 열면 내가 그에게로 들어가리라",
+        reference: "요한계시록 3:20"
+    },
+    {
+        text: "여호와께 감사하라 그는 선하시며 그 인자하심이 영원함이로다",
+        reference: "시편 107:1"
+    },
+    {
+        text: "선한 싸움을 싸우고 믿음을 지켰으니",
+        reference: "디모데후서 4:7"
+    },
+    {
+        text: "하나님의 말씀은 살아 있고 활력이 있어 좌우에 날선 어떤 검보다도 예리하여",
+        reference: "히브리서 4:12"
+    },
+    {
+        text: "주의 말씀은 내 발에 등이요 내 길에 빛이니이다",
+        reference: "시편 119:105"
+    },
+    {
+        text: "나 여호와가 말하노라 너희를 향한 나의 생각을 내가 아나니 평안이요 재앙이 아니니라",
+        reference: "예레미야 29:11"
+    },
+    {
+        text: "그리스도 예수 안에 있는 구속으로 말미암아 하나님의 은혜로 값 없이 의롭다 하심을 얻은 자 되었느니라",
+        reference: "로마서 3:24"
+    },
+    {
+        text: "오직 성령이 너희에게 임하시면 너희가 권능을 받고",
+        reference: "사도행전 1:8"
+    },
+    {
+        text: "그가 너를 그의 깃으로 덮으시리니 네가 그의 날개 아래에 피하리로다",
+        reference: "시편 91:4"
+    },
+    {
+        text: "우리가 알거니와 하나님을 사랑하는 자 곧 그의 뜻대로 부르심을 입은 자들에게는 모든 것이 합력하여 선을 이루느니라",
+        reference: "로마서 8:28"
+    },
+    {
+        text: "내가 확신하노니 사망이나 생명이나 천사들이나 권세자들이나 현재 일이나 장래 일이나 능력이나 높음이나 깊음이나 다른 어떤 피조물이라도 우리를 우리 주 그리스도 예수 안에 있는 하나님의 사랑에서 끊을 수 없으리라",
+        reference: "로마서 8:38-39"
+    },
+    {
+        text: "평안을 너희에게 끼치노니 곧 나의 평안을 너희에게 주노라",
+        reference: "요한복음 14:27"
+    },
+    {
+        text: "그런즉 누구든지 그리스도 안에 있으면 새로운 피조물이라",
+        reference: "고린도후서 5:17"
+    },
+    {
+        text: "의에 주리고 목마른 자는 복이 있나니 그들이 배부를 것임이요",
+        reference: "마태복음 5:6"
+    },
+    {
+        text: "네 시작은 미약하였으나 네 나중은 심히 창대하리라",
+        reference: "욥기 8:7"
+    },
+    {
+        text: "우리의 싸우는 무기는 육신에 속한 것이 아니요 오직 하나님 앞에서 견고한 진을 무너뜨리는 강력이라",
+        reference: "고린도후서 10:4"
+    },
+    {
+        text: "무릇 하나님께로부터 난 자마다 세상을 이기느니라 세상을 이기는 승리는 이것이니 우리의 믿음이니라",
+        reference: "요한일서 5:4"
+    },
+    {
+        text: "너희 안에서 행하시는 이는 하나님이시니 자기의 기쁘신 뜻을 위하여 너희에게 소원을 두고 행하게 하시나니",
+        reference: "빌립보서 2:13"
+    },
+    {
+        text: "너희 중에 누구든지 지혜가 부족하거든 모든 사람에게 후히 주시고 꾸짖지 아니하시는 하나님께 구하라",
+        reference: "야고보서 1:5"
+    },
+    {
+        text: "이는 그리스도 예수 안에서 생명의 성령의 법이 죄와 사망의 법에서 너를 해방하였음이라",
+        reference: "로마서 8:2"
+    }
+];
+
+// 날짜 표시
+function displayDate() {
+    const today = new Date();
+    const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+    const dateString = today.toLocaleDateString('ko-KR', options);
+    document.getElementById('today-date').textContent = dateString;
+}
+
+// 랜덤으로 10개의 구절 선택
+function getRandomVerses(count = 10) {
+    const shuffled = [...bibleVerses].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, count);
+}
+
+// 구절을 화면에 표시
+function displayVerses() {
+    const container = document.getElementById('verses-container');
+    container.innerHTML = '';
+
+    const selectedVerses = getRandomVerses(10);
+
+    selectedVerses.forEach((verse, index) => {
+        const verseCard = document.createElement('div');
+        verseCard.className = 'verse-card';
+
+        verseCard.innerHTML = `
+            <div class="verse-number">${index + 1}</div>
+            <div class="verse-text">"${verse.text}"</div>
+            <div class="verse-reference">- ${verse.reference}</div>
+        `;
+
+        container.appendChild(verseCard);
+    });
+}
+
+// 초기화
+function init() {
+    displayDate();
+    displayVerses();
+
+    // 새로고침 버튼 이벤트
+    document.getElementById('refresh-btn').addEventListener('click', displayVerses);
+}
+
+// 페이지 로드 시 실행
+document.addEventListener('DOMContentLoaded', init);
