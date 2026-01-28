@@ -52,19 +52,19 @@ h1, h2, h3, h4, h5, h6 {
   background: #a0a0a0;
 }
 
-/* Cursive signature fonts */
+/* Cursive signature fonts - Direct Google Fonts */
 .font-great-vibes {
-  font-family: var(--font-great-vibes), cursive;
+  font-family: 'Great Vibes', cursive !important;
 }
 
 .font-dancing-script {
-  font-family: var(--font-dancing-script), cursive;
+  font-family: 'Dancing Script', cursive !important;
 }
 
 .font-alex-brush {
-  font-family: var(--font-alex-brush), cursive;
+  font-family: 'Alex Brush', cursive !important;
 }
 
 .font-pinyon-script {
-  font-family: var(--font-pinyon-script), cursive;
+  font-family: 'Pinyon Script', cursive !important;
 }

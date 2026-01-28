@@ -1,12 +1,5 @@
 import type { Metadata } from "next";
-import {
-  Geist,
-  Playfair_Display,
-  Great_Vibes,
-  Dancing_Script,
-  Alex_Brush,
-  Pinyon_Script
-} from "next/font/google";
+import { Geist, Playfair_Display } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -21,30 +14,6 @@ const playfairDisplay = Playfair_Display({
   weight: ["400", "500", "600", "700"],
 });
 
-const greatVibes = Great_Vibes({
-  variable: "--font-great-vibes",
-  subsets: ["latin"],
-  weight: ["400"],
-});
-
-const dancingScript = Dancing_Script({
-  variable: "--font-dancing-script",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-});
-
-const alexBrush = Alex_Brush({
-  variable: "--font-alex-brush",
-  subsets: ["latin"],
-  weight: ["400"],
-});
-
-const pinyonScript = Pinyon_Script({
-  variable: "--font-pinyon-script",
-  subsets: ["latin"],
-  weight: ["400"],
-});
-
 export const metadata: Metadata = {
   title: "Signature.studio - AI Signature Generation",
   description: "Create your unique AI-generated signature with elegance and style",
@@ -57,8 +26,16 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Dancing+Script:wght@400;500;600;700&family=Alex+Brush&family=Pinyon+Script&display=swap"
+          rel="stylesheet"
+        />
+      </head>
       <body
-        className={`${geistSans.variable} ${playfairDisplay.variable} ${greatVibes.variable} ${dancingScript.variable} ${alexBrush.variable} ${pinyonScript.variable} antialiased`}
+        className={`${geistSans.variable} ${playfairDisplay.variable} antialiased`}
       >
         {children}
       </body>
