@@ -11,12 +11,12 @@ export interface SignatureStyle {
 
 export function generateSignatureStyles(name: string): SignatureStyle[] {
   const fonts = [
-    { name: 'Classic Elegance', family: 'var(--font-great-vibes)' },
-    { name: 'Modern Flow', family: 'var(--font-dancing-script)' },
-    { name: 'Artistic Brush', family: 'var(--font-alex-brush)' },
-    { name: 'Vintage Script', family: 'var(--font-pinyon-script)' },
-    { name: 'Bold Statement', family: 'var(--font-dancing-script)' },
-    { name: 'Minimalist Chic', family: 'var(--font-great-vibes)' },
+    { name: 'Classic Elegance', family: '"Great Vibes", cursive' },
+    { name: 'Modern Flow', family: '"Dancing Script", cursive' },
+    { name: 'Artistic Brush', family: '"Alex Brush", cursive' },
+    { name: 'Vintage Script', family: '"Pinyon Script", cursive' },
+    { name: 'Bold Statement', family: '"Dancing Script", cursive' },
+    { name: 'Minimalist Chic', family: '"Great Vibes", cursive' },
   ];
 
   return fonts.map((font, index) => {
