@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import SignatureCanvas from './SignatureCanvas';
+import { generateSignatureStyles } from '../lib/signatureStyles';
 
 interface ProcessingSectionProps {
   name: string;
@@ -9,13 +11,24 @@ interface ProcessingSectionProps {
 }
 
 export default function ProcessingSection({ name, onComplete }: ProcessingSectionProps) {
-  useEffect(() => {
-    // Simulate processing for 3 seconds
-    const timer = setTimeout(() => {
-      onComplete();
-    }, 3000);
+  const [showAnimation, setShowAnimation] = useState(false);
+  const styles = generateSignatureStyles(name);
 
-    return () => clearTimeout(timer);
+  useEffect(() => {
+    // Start animation after a brief delay
+    const animationTimer = setTimeout(() => {
+      setShowAnimation(true);
+    }, 500);
+
+    // Complete processing after animation
+    const completeTimer = setTimeout(() => {
+      onComplete();
+    }, 3500);
+
+    return () => {
+      clearTimeout(animationTimer);
+      clearTimeout(completeTimer);
+    };
   }, [onComplete]);
 
   return (
@@ -23,28 +36,16 @@ export default function ProcessingSection({ name, onComplete }: ProcessingSectio
       <div className="w-full max-w-2xl mx-auto text-center space-y-12">
         {/* Processing Animation */}
         <div className="flex flex-col items-center gap-8">
-          {/* Animated signature line */}
-          <div className="relative w-full h-32 flex items-center justify-center">
-            <svg
-              className="w-64 h-24"
-              viewBox="0 0 256 96"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M 10 48 Q 40 20, 80 48 T 150 48 Q 180 60, 220 40"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                fill="none"
-                className="text-gray-400"
-                style={{
-                  strokeDasharray: 300,
-                  strokeDashoffset: 300,
-                  animation: 'drawSignature 2s ease-in-out infinite',
-                }}
+          {/* Animated signature preview */}
+          <div className="relative w-full h-32 flex items-center justify-center bg-gray-50 rounded-lg">
+            {showAnimation && (
+              <SignatureCanvas
+                text={name}
+                style={styles[0]}
+                animated={true}
+                showWatermark={false}
               />
-            </svg>
+            )}
           </div>
 
           {/* Loading spinner */}
@@ -61,24 +62,6 @@ export default function ProcessingSection({ name, onComplete }: ProcessingSectio
           </p>
         </div>
       </div>
-
-      {/* CSS Animation */}
-      <style jsx>{`
-        @keyframes drawSignature {
-          0% {
-            stroke-dashoffset: 300;
-            opacity: 0.3;
-          }
-          50% {
-            stroke-dashoffset: 0;
-            opacity: 1;
-          }
-          100% {
-            stroke-dashoffset: -300;
-            opacity: 0.3;
-          }
-        }
-      `}</style>
     </div>
   );
 }

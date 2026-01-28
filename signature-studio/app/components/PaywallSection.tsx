@@ -1,6 +1,8 @@
 'use client';
 
 import { Check, Lock } from 'lucide-react';
+import SignatureCanvas from './SignatureCanvas';
+import { generateSignatureStyles } from '../lib/signatureStyles';
 
 interface PaywallSectionProps {
   name: string;
@@ -9,11 +11,13 @@ interface PaywallSectionProps {
 
 export default function PaywallSection({ name, onPaymentComplete }: PaywallSectionProps) {
   const features = [
-    '10+ AI-designed signatures',
+    '6 unique handcrafted styles',
     'High-resolution transparent PNG',
     'Commercial license included',
     'Instant download',
   ];
+
+  const styles = generateSignatureStyles(name);
 
   const handlePayment = () => {
     // Simulate payment processing
@@ -35,32 +39,20 @@ export default function PaywallSection({ name, onPaymentComplete }: PaywallSecti
           </p>
         </div>
 
-        {/* Blurred Preview Grid */}
+        {/* Signature Preview Grid with Watermark */}
         <div className="relative">
           <div className="grid grid-cols-2 gap-6">
-            {[1, 2, 3, 4].map((index) => (
+            {styles.slice(0, 4).map((style) => (
               <div
-                key={index}
-                className="aspect-video bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-center overflow-hidden"
+                key={style.id}
+                className="aspect-video bg-gray-50 rounded-lg border border-gray-200 overflow-hidden"
               >
-                {/* Simulated blurred signature */}
-                <div className="blur-xl opacity-50">
-                  <svg
-                    className="w-48 h-24"
-                    viewBox="0 0 192 96"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d={`M ${20 + index * 10} 48 Q ${40 + index * 5} ${20 + index * 5}, ${80 + index * 10} 48 T ${150 - index * 10} 48`}
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      fill="none"
-                      className="text-gray-800"
-                    />
-                  </svg>
-                </div>
+                <SignatureCanvas
+                  text={name}
+                  style={style}
+                  showWatermark={true}
+                  animated={false}
+                />
               </div>
             ))}
           </div>
