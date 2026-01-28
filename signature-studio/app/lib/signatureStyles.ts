@@ -2,6 +2,7 @@ export interface SignatureStyle {
   id: number;
   name: string;
   fontFamily: string;
+  fontClass: string;
   fontSize: number;
   rotation: number;
   letterSpacing: number;
@@ -11,12 +12,12 @@ export interface SignatureStyle {
 
 export function generateSignatureStyles(name: string): SignatureStyle[] {
   const fonts = [
-    { name: 'Classic Elegance', family: '"Great Vibes", cursive' },
-    { name: 'Modern Flow', family: '"Dancing Script", cursive' },
-    { name: 'Artistic Brush', family: '"Alex Brush", cursive' },
-    { name: 'Vintage Script', family: '"Pinyon Script", cursive' },
-    { name: 'Bold Statement', family: '"Dancing Script", cursive' },
-    { name: 'Minimalist Chic', family: '"Great Vibes", cursive' },
+    { name: 'Classic Elegance', family: '"Great Vibes", cursive', className: 'font-great-vibes' },
+    { name: 'Modern Flow', family: '"Dancing Script", cursive', className: 'font-dancing-script' },
+    { name: 'Artistic Brush', family: '"Alex Brush", cursive', className: 'font-alex-brush' },
+    { name: 'Vintage Script', family: '"Pinyon Script", cursive', className: 'font-pinyon-script' },
+    { name: 'Bold Statement', family: '"Dancing Script", cursive', className: 'font-dancing-script' },
+    { name: 'Minimalist Chic', family: '"Great Vibes", cursive', className: 'font-great-vibes' },
   ];
 
   return fonts.map((font, index) => {
@@ -30,6 +31,7 @@ export function generateSignatureStyles(name: string): SignatureStyle[] {
       id: index + 1,
       name: font.name,
       fontFamily: font.family,
+      fontClass: font.className,
       fontSize: baseFontSize[index],
       rotation: baseRotation[index],
       letterSpacing: baseLetterSpacing[index],

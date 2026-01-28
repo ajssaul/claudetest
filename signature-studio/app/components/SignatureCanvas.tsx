@@ -45,9 +45,8 @@ export default function SignatureCanvas({
         initial={animated ? { opacity: 0 } : { opacity: 1 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
-        className="relative z-10"
+        className={`relative z-10 ${style.fontClass}`}
         style={{
-          fontFamily: style.fontFamily,
           fontSize: `${style.fontSize}px`,
           transform: `rotate(${style.rotation}deg)`,
           letterSpacing: `${style.letterSpacing}em`,
