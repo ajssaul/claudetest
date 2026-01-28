@@ -1,70 +1,36 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-  --secondary-bg: #f9f9f9;
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-secondary: var(--secondary-bg);
-  --font-sans: var(--font-geist-sans);
-  --font-serif: var(--font-playfair);
-
-  /* Custom spacing for luxury feel */
-  --spacing-section: 8rem;
-  --spacing-large: 4rem;
-}
-
-/* No dark mode for this elegant service */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: 'Inter', sans-serif;
   font-weight: 300;
-  letter-spacing: 0.01em;
+  color: #171717;
+  background: #ffffff;
 }
 
-/* Headings use serif font */
 h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-playfair), ui-serif, Georgia, serif;
+  font-family: 'Playfair Display', serif;
   font-weight: 400;
-  letter-spacing: -0.02em;
 }
 
-/* Custom scrollbar for elegance */
-::-webkit-scrollbar {
-  width: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--background);
-}
-
-::-webkit-scrollbar-thumb {
-  background: #d0d0d0;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #a0a0a0;
-}
-
-/* Cursive signature fonts - Direct Google Fonts */
-.font-great-vibes {
+/* Signature Fonts - Google Fonts Cursive */
+.signature-great-vibes {
   font-family: 'Great Vibes', cursive !important;
 }
 
-.font-dancing-script {
+.signature-dancing-script {
   font-family: 'Dancing Script', cursive !important;
 }
 
-.font-alex-brush {
+.signature-alex-brush {
   font-family: 'Alex Brush', cursive !important;
 }
 
-.font-pinyon-script {
+.signature-pinyon-script {
   font-family: 'Pinyon Script', cursive !important;
 }
