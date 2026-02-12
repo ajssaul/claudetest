@@ -1,18 +1,18 @@
 export interface UserSession {
   uuid: string
-  name: string
+  birthYear: number
+  birthMonth: number
+  birthDay: number
   paid: boolean
-  selectedStyle: number
   createdAt: string
 }
 
-const STORAGE_KEY = 'signature_studio_session'
+const STORAGE_KEY = 'fortune_studio_session'
 
-export function getOrCreateSession(): UserSession | null {
+export function getSession(): UserSession | null {
   if (typeof window === 'undefined') return null
 
   const stored = localStorage.getItem(STORAGE_KEY)
-
   if (stored) {
     try {
       return JSON.parse(stored) as UserSession
@@ -20,16 +20,16 @@ export function getOrCreateSession(): UserSession | null {
       return null
     }
   }
-
   return null
 }
 
-export function createNewSession(name: string): UserSession {
+export function createSession(year: number, month: number, day: number): UserSession {
   const session: UserSession = {
     uuid: crypto.randomUUID(),
-    name,
+    birthYear: year,
+    birthMonth: month,
+    birthDay: day,
     paid: false,
-    selectedStyle: 0,
     createdAt: new Date().toISOString(),
   }
 
@@ -43,7 +43,7 @@ export function createNewSession(name: string): UserSession {
 export function updateSession(updates: Partial<UserSession>): UserSession | null {
   if (typeof window === 'undefined') return null
 
-  const current = getOrCreateSession()
+  const current = getSession()
   if (!current) return null
 
   const updated = { ...current, ...updates }
@@ -62,12 +62,6 @@ export function clearSession(): void {
   }
 }
 
-export function hasValidSession(): boolean {
-  const session = getOrCreateSession()
-  return session !== null && session.name.length > 0
-}
-
 export function isPaid(): boolean {
-  const session = getOrCreateSession()
-  return session?.paid === true
+  return getSession()?.paid === true
 }

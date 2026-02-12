@@ -2,9 +2,8 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Signature Studio | Luxury Digital Signatures',
-  description: 'Create elegant, personalized digital signatures with our premium signature generator.',
-  keywords: ['signature', 'digital signature', 'elegant', 'personalized', 'luxury'],
+  title: 'Fortune Studio | Discover Your Destiny',
+  description: 'Unlock the secrets of your birth date with premium fortune readings.',
 }
 
 export default function RootLayout({
@@ -13,7 +12,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    <html lang="ko">
       <body className="min-h-screen bg-background antialiased">
         {children}
       </body>
