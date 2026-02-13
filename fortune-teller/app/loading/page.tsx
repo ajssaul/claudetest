@@ -40,7 +40,7 @@ export default function LoadingPage() {
     })
 
     const redirectTimer = setTimeout(() => {
-      router.push('/preview')
+      router.push(`/results/${session.uuid}`)
     }, 4000)
 
     return () => {

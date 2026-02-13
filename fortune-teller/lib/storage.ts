@@ -3,7 +3,6 @@ export interface UserSession {
   birthYear: number
   birthMonth: number
   birthDay: number
-  paid: boolean
   createdAt: string
 }
 
@@ -29,7 +28,6 @@ export function createSession(year: number, month: number, day: number): UserSes
     birthYear: year,
     birthMonth: month,
     birthDay: day,
-    paid: false,
     createdAt: new Date().toISOString(),
   }
 
@@ -40,28 +38,8 @@ export function createSession(year: number, month: number, day: number): UserSes
   return session
 }
 
-export function updateSession(updates: Partial<UserSession>): UserSession | null {
-  if (typeof window === 'undefined') return null
-
-  const current = getSession()
-  if (!current) return null
-
-  const updated = { ...current, ...updates }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
-
-  return updated
-}
-
-export function markAsPaid(): UserSession | null {
-  return updateSession({ paid: true })
-}
-
 export function clearSession(): void {
   if (typeof window !== 'undefined') {
     localStorage.removeItem(STORAGE_KEY)
   }
-}
-
-export function isPaid(): boolean {
-  return getSession()?.paid === true
 }

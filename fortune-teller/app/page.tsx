@@ -16,11 +16,8 @@ export default function HomePage() {
 
   useEffect(() => {
     const session = getSession()
-    if (session?.paid) {
-      router.push(`/results/${session.uuid}`)
-      return
-    }
     if (session) {
+      // 기존 세션이 있으면 입력값 복원
       setYear(String(session.birthYear))
       setMonth(String(session.birthMonth))
       setDay(String(session.birthDay))
