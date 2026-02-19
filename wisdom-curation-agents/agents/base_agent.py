@@ -1,6 +1,8 @@
 import json
+import re
 import os
 import logging
+import traceback
 from datetime import datetime
 from typing import Optional
 
@@ -36,7 +38,7 @@ class BaseAgent:
 
     async def run(self, task_input: dict) -> dict:
         """에이전트 실행 메서드. 하위 클래스에서 구현."""
-        raise NotImplementedError(f"{self.name} 에이전트의 run() 메서드가 구현되지 않았습니다.")
+        raise NotImplementedError(f"{self.name} 에이전트의 run() 미구현")
 
     def call_llm(
         self,
@@ -44,32 +46,58 @@ class BaseAgent:
         tools: Optional[list] = None,
         temperature: float = 0.7,
     ) -> str:
-        """Claude API 호출 래퍼."""
+        """Claude API 호출 래퍼. tool_use 루프를 자동 처리한다."""
         kwargs = {
             "model": self.model,
             "max_tokens": self.max_tokens,
             "system": self.system_prompt,
-            "messages": messages,
+            "messages": list(messages),  # 복사
             "temperature": temperature,
         }
         if tools:
             kwargs["tools"] = tools
 
-        response = self.client.messages.create(**kwargs)
+        # tool_use 루프: Claude가 도구를 호출하면 결과를 돌려주고 계속 진행
+        max_tool_rounds = 15
+        all_text_parts = []
 
-        # tool_use 응답 처리
-        result_parts = []
-        for block in response.content:
-            if block.type == "text":
-                result_parts.append(block.text)
-            elif block.type == "tool_use":
-                result_parts.append(json.dumps({
-                    "tool_use": block.name,
-                    "tool_input": block.input,
-                    "tool_id": block.id,
-                }, ensure_ascii=False))
+        for _ in range(max_tool_rounds):
+            try:
+                response = self.client.messages.create(**kwargs)
+            except Exception as e:
+                logger.error(f"[{self.name}] API 호출 실패: {e}")
+                raise
 
-        return "\n".join(result_parts)
+            text_parts = []
+            tool_uses = []
+
+            for block in response.content:
+                if block.type == "text":
+                    text_parts.append(block.text)
+                elif block.type == "tool_use":
+                    tool_uses.append(block)
+
+            all_text_parts.extend(text_parts)
+
+            # tool_use가 없으면 (end_turn) 종료
+            if not tool_uses or response.stop_reason == "end_turn":
+                break
+
+            # tool_use 응답을 메시지에 추가하여 루프 계속
+            # assistant 메시지 (tool_use 포함) 추가
+            kwargs["messages"].append({"role": "assistant", "content": response.content})
+
+            # tool_result 메시지 추가
+            tool_results = []
+            for tu in tool_uses:
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": tu.id,
+                    "content": "검색 완료. 결과를 종합하여 JSON으로 응답해주세요.",
+                })
+            kwargs["messages"].append({"role": "user", "content": tool_results})
+
+        return "\n".join(all_text_parts)
 
     def call_llm_json(
         self,
@@ -80,72 +108,98 @@ class BaseAgent:
         raw = self.call_llm(messages, temperature=temperature)
         return self._extract_json(raw)
 
-    def call_llm_with_tools(
-        self,
-        messages: list,
-        tools: list,
-        temperature: float = 0.7,
-    ) -> tuple:
-        """tool_use를 지원하는 Claude API 호출. (response, tool_calls) 반환."""
-        kwargs = {
-            "model": self.model,
-            "max_tokens": self.max_tokens,
-            "system": self.system_prompt,
-            "messages": messages,
-            "tools": tools,
-            "temperature": temperature,
-        }
-
-        response = self.client.messages.create(**kwargs)
-
-        text_parts = []
-        tool_calls = []
-        for block in response.content:
-            if block.type == "text":
-                text_parts.append(block.text)
-            elif block.type == "tool_use":
-                tool_calls.append({
-                    "id": block.id,
-                    "name": block.name,
-                    "input": block.input,
-                })
-
-        return "\n".join(text_parts), tool_calls
+    @staticmethod
+    def _find_matching_bracket(text: str, start: int, open_ch: str, close_ch: str) -> int:
+        """매칭되는 닫는 괄호 위치를 찾는다. 없으면 -1."""
+        depth = 0
+        in_string = False
+        escape = False
+        for i in range(start, len(text)):
+            ch = text[i]
+            if escape:
+                escape = False
+                continue
+            if ch == '\\' and in_string:
+                escape = True
+                continue
+            if ch == '"' and not escape:
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if ch == open_ch:
+                depth += 1
+            elif ch == close_ch:
+                depth -= 1
+                if depth == 0:
+                    return i
+        return -1
 
     @staticmethod
-    def _extract_json(text: str) -> dict:
-        """텍스트에서 JSON 블록을 추출한다."""
-        # ```json ... ``` 블록 추출 시도
-        import re
-        json_match = re.search(r'```json\s*(.*?)\s*```', text, re.DOTALL)
+    def _extract_json(text: str):
+        """텍스트에서 JSON을 추출한다. dict 또는 list를 반환."""
+        if not text or not text.strip():
+            raise ValueError("빈 응답에서 JSON을 추출할 수 없습니다")
+
+        # 1) ```json ... ``` 블록 추출
+        json_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?\s*```', text, re.DOTALL)
         if json_match:
-            return json.loads(json_match.group(1))
+            try:
+                return json.loads(json_match.group(1).strip())
+            except json.JSONDecodeError:
+                pass
 
-        # { ... } 직접 추출 시도
+        # 2) 먼저 나오는 { 또는 [ 기준으로 추출 (바깥쪽 구조 우선)
         brace_start = text.find('{')
-        if brace_start != -1:
-            depth = 0
-            for i in range(brace_start, len(text)):
-                if text[i] == '{':
-                    depth += 1
-                elif text[i] == '}':
-                    depth -= 1
-                    if depth == 0:
-                        return json.loads(text[brace_start:i + 1])
-
-        # [ ... ] 배열 추출 시도
         bracket_start = text.find('[')
-        if bracket_start != -1:
-            depth = 0
-            for i in range(bracket_start, len(text)):
-                if text[i] == '[':
-                    depth += 1
-                elif text[i] == ']':
-                    depth -= 1
-                    if depth == 0:
-                        return json.loads(text[bracket_start:i + 1])
 
-        raise ValueError(f"JSON을 추출할 수 없습니다: {text[:200]}...")
+        # { 가 [ 보다 먼저 → 객체 우선 시도
+        if brace_start != -1 and (bracket_start == -1 or brace_start < bracket_start):
+            end = BaseAgent._find_matching_bracket(text, brace_start, '{', '}')
+            if end != -1:
+                try:
+                    return json.loads(text[brace_start:end + 1])
+                except json.JSONDecodeError:
+                    pass
+
+        # [ 가 { 보다 먼저 → 배열 우선 시도
+        if bracket_start != -1 and (brace_start == -1 or bracket_start < brace_start):
+            end = BaseAgent._find_matching_bracket(text, bracket_start, '[', ']')
+            if end != -1:
+                try:
+                    return json.loads(text[bracket_start:end + 1])
+                except json.JSONDecodeError:
+                    pass
+
+        # 3) 둘 다 실패 시 나머지 시도
+        if brace_start != -1 and (bracket_start == -1 or brace_start >= bracket_start):
+            end = BaseAgent._find_matching_bracket(text, brace_start, '{', '}')
+            if end != -1:
+                try:
+                    return json.loads(text[brace_start:end + 1])
+                except json.JSONDecodeError:
+                    pass
+
+        if bracket_start != -1 and (brace_start == -1 or bracket_start >= brace_start):
+            end = BaseAgent._find_matching_bracket(text, bracket_start, '[', ']')
+            if end != -1:
+                try:
+                    return json.loads(text[bracket_start:end + 1])
+                except json.JSONDecodeError:
+                    pass
+
+        # 4) 여러 개의 JSON 객체가 나열된 경우
+        objects = []
+        for m in re.finditer(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text):
+            try:
+                obj = json.loads(m.group())
+                objects.append(obj)
+            except json.JSONDecodeError:
+                continue
+        if objects:
+            return objects
+
+        raise ValueError(f"JSON을 추출할 수 없습니다: {text[:300]}...")
 
     def log(self, message: str):
         """에이전트 활동 로그."""
