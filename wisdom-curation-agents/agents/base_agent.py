@@ -46,58 +46,32 @@ class BaseAgent:
         tools: Optional[list] = None,
         temperature: float = 0.7,
     ) -> str:
-        """Claude API 호출 래퍼. tool_use 루프를 자동 처리한다."""
+        """Claude API 호출 래퍼."""
         kwargs = {
             "model": self.model,
             "max_tokens": self.max_tokens,
             "system": self.system_prompt,
-            "messages": list(messages),  # 복사
+            "messages": list(messages),
             "temperature": temperature,
         }
-        if tools:
-            kwargs["tools"] = tools
+        # tools는 사용하지 않음 (web_search 호환성 문제 방지)
 
-        # tool_use 루프: Claude가 도구를 호출하면 결과를 돌려주고 계속 진행
-        max_tool_rounds = 15
-        all_text_parts = []
+        try:
+            response = self.client.messages.create(**kwargs)
+        except Exception as e:
+            self.log(f"API 호출 실패: {e}")
+            raise
 
-        for _ in range(max_tool_rounds):
-            try:
-                response = self.client.messages.create(**kwargs)
-            except Exception as e:
-                logger.error(f"[{self.name}] API 호출 실패: {e}")
-                raise
+        text_parts = []
+        for block in response.content:
+            if block.type == "text":
+                text_parts.append(block.text)
 
-            text_parts = []
-            tool_uses = []
+        result = "\n".join(text_parts)
+        if not result.strip():
+            self.log("경고: API가 빈 텍스트를 반환했습니다")
 
-            for block in response.content:
-                if block.type == "text":
-                    text_parts.append(block.text)
-                elif block.type == "tool_use":
-                    tool_uses.append(block)
-
-            all_text_parts.extend(text_parts)
-
-            # tool_use가 없으면 (end_turn) 종료
-            if not tool_uses or response.stop_reason == "end_turn":
-                break
-
-            # tool_use 응답을 메시지에 추가하여 루프 계속
-            # assistant 메시지 (tool_use 포함) 추가
-            kwargs["messages"].append({"role": "assistant", "content": response.content})
-
-            # tool_result 메시지 추가
-            tool_results = []
-            for tu in tool_uses:
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": tu.id,
-                    "content": "검색 완료. 결과를 종합하여 JSON으로 응답해주세요.",
-                })
-            kwargs["messages"].append({"role": "user", "content": tool_results})
-
-        return "\n".join(all_text_parts)
+        return result
 
     def call_llm_json(
         self,
