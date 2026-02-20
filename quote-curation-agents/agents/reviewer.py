@@ -100,8 +100,10 @@ class Reviewer(BaseAgent):
 2. 주제 '{topic}' 적합성
 3. 출처 명확성 (구체적 출처명 필수)
 4. 비퍼블릭 도메인 도서: 원문 2문장, 번역 재구성 의역, 해설 4~5문장
-5. 번역 품질, 어투('-다' 체), 해설 품질(150~250자)
-6. 카테고리/mood 유효성
+5. 원문 3문장 이상 확인 (비퍼블릭 도메인 도서 제외). 2문장 이하이면 REVISE → "앞뒤 맥락 포함하여 3문장 이상으로 확장"
+6. 해설에 한국 특정 인물 실명이 있으면 REVISE → "실명 대신 일반 표현으로 변경"
+7. 번역 품질, 어투('-다' 체), 해설 품질(150~250자)
+8. 카테고리/mood 유효성
 
 ■ 카테고리: business, marketing, leadership, self-improvement, philosophy, wealth, creativity, psychology, relationships
 ■ Mood: execution, growth, challenge, relationships, motivation, new-goal, comfort, contemplation, anxiety, habits, meaning

@@ -193,7 +193,8 @@ class Collector(BaseAgent):
         parts.append(f"""
 ■ 수집 규칙:
 - 출처가 명확한 명언만 수집
-- 원문은 영어로 2~7문장 (비퍼블릭 도메인 도서는 최대 2문장)
+- 원문은 영어로 3~7문장 (비퍼블릭 도메인 도서만 최대 2문장)
+- 2문장만 있는 명언은 앞뒤 맥락 문장을 포함하여 3문장 이상으로 확장 (1명언 1주제 유지 시에만)
 - 주제 '{task.topic}'과 관련성이 높은 것만
 
 다른 설명 없이 아래 형식의 JSON 배열만 출력해라:
@@ -203,7 +204,7 @@ class Collector(BaseAgent):
     "leader_name": "한글 이름",
     "leader_name_en": "English Name",
     "leader_title": "직함 또는 직업",
-    "wisdom_original": "영어 원문 (2~7문장)",
+    "wisdom_original": "영어 원문 (3~7문장, 비퍼블릭 도메인 도서만 최대 2문장)",
     "source": "출처명 (책제목, 연설명 등)",
     "source_type": "도서",
     "source_url": "https://example.com",
