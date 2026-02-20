@@ -29,8 +29,8 @@ class Wisdom(BaseModel):
     leader_name: str = Field(description="명언을 말한 사람의 한글 이름")
     leader_name_en: str = Field(description="명언을 말한 사람의 영어 이름")
     leader_title: str = Field(description="직함 또는 직업")
-    wisdom_original: str = Field(description="영어 원문 (2~7문장)")
-    wisdom_kr: str = Field(description="한국어 번역 (2~7문장)")
+    wisdom_original: str = Field(description="영어 원문 (3~7문장, 비퍼블릭 도메인 도서만 최대 2문장)")
+    wisdom_kr: str = Field(description="한국어 번역 (3~7문장, 비퍼블릭 도메인 도서만 최대 2문장)")
     wisdom_commentary: str = Field(description="한국 맥락 해설 (200~400자, 3~5문장)")
     source: str = Field(description="출처명")
     source_type: SourceType
