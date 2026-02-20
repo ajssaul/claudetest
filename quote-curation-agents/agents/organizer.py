@@ -36,7 +36,7 @@ class Organizer(BaseAgent):
         messages = [{"role": "user", "content": user_message}]
 
         try:
-            raw = self.call_llm(messages, temperature=0.5)
+            raw = await self.async_call_llm(messages, temperature=0.5)
             result = self._extract_json(raw)
 
             # 배열이면 바로 wisdoms
@@ -92,7 +92,7 @@ class Organizer(BaseAgent):
 
         messages = [{"role": "user", "content": prompt}]
         try:
-            raw = self.call_llm(messages, temperature=0.5)
+            raw = await self.async_call_llm(messages, temperature=0.5)
             result = self._extract_json(raw)
             if isinstance(result, dict):
                 result = result.get("wisdoms", result.get("revised", [result]))

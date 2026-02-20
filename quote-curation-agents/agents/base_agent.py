@@ -1,3 +1,4 @@
+import asyncio
 import json
 import re
 import os
@@ -22,6 +23,7 @@ class BaseAgent:
         self.role = role
         self.system_prompt = self._load_system_prompt(system_prompt_file)
         self.client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
+        self.async_client = anthropic.AsyncAnthropic(api_key=config.ANTHROPIC_API_KEY)
         self.model = config.DEFAULT_MODEL
         self.max_tokens = config.MAX_TOKENS
 
@@ -80,6 +82,55 @@ class BaseAgent:
             self.log("경고: API가 빈 텍스트를 반환했습니다")
 
         return result
+
+    async def async_call_llm(
+        self,
+        messages: list,
+        tools: Optional[list] = None,
+        temperature: float = 0.7,
+    ) -> str:
+        """비동기 Claude API 호출 래퍼."""
+        kwargs = {
+            "model": self.model,
+            "max_tokens": self.max_tokens,
+            "system": self.system_prompt,
+            "messages": list(messages),
+            "temperature": temperature,
+        }
+
+        max_retries = 4
+        for attempt in range(max_retries):
+            try:
+                response = await self.async_client.messages.create(**kwargs)
+                break
+            except Exception as e:
+                if "429" in str(e) and attempt < max_retries - 1:
+                    wait = 2 ** (attempt + 1)
+                    self.log(f"Rate limit 초과, {wait}초 후 재시도 ({attempt + 1}/{max_retries})")
+                    await asyncio.sleep(wait)
+                else:
+                    self.log(f"API 호출 실패: {e}")
+                    raise
+
+        text_parts = []
+        for block in response.content:
+            if block.type == "text":
+                text_parts.append(block.text)
+
+        result = "\n".join(text_parts)
+        if not result.strip():
+            self.log("경고: API가 빈 텍스트를 반환했습니다")
+
+        return result
+
+    async def async_call_llm_json(
+        self,
+        messages: list,
+        temperature: float = 0.5,
+    ) -> dict:
+        """비동기 Claude API를 호출하고 JSON 응답을 파싱한다."""
+        raw = await self.async_call_llm(messages, temperature=temperature)
+        return self._extract_json(raw)
 
     def call_llm_json(
         self,

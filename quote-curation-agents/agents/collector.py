@@ -3,6 +3,7 @@
 다양한 소스에서 명언 원문과 메타데이터를 수집한다.
 """
 
+import asyncio
 import json
 import logging
 import traceback
@@ -39,8 +40,29 @@ class Collector(BaseAgent):
 
         self.log(f"수집 시작: 주제='{task.topic}', 인물={task.leaders or '자동'}, 목표={target}개")
 
-        # LLM 지식 기반 수집 (가장 안정적)
-        collected = self._collect_from_knowledge(task, target, supplement_request)
+        # 병렬 수집: target을 2개 청크로 나눠 동시에 요청
+        if target >= 6:
+            chunk_a = target // 2
+            chunk_b = target - chunk_a
+            self.log(f"병렬 수집: {chunk_a}개 + {chunk_b}개 동시 요청")
+
+            results = await asyncio.gather(
+                self._async_collect_from_knowledge(task, chunk_a, supplement_request),
+                self._async_collect_from_knowledge(task, chunk_b, supplement_request),
+            )
+            collected = results[0] + results[1]
+
+            # 중복 제거 (원문 기준)
+            seen = set()
+            deduped = []
+            for item in collected:
+                key = item.get("wisdom_original", "").strip().lower()
+                if key and key not in seen:
+                    seen.add(key)
+                    deduped.append(item)
+            collected = deduped[:target]
+        else:
+            collected = await self._async_collect_from_knowledge(task, target, supplement_request)
 
         if not collected:
             self.log("수집 실패: 0개")
@@ -49,10 +71,33 @@ class Collector(BaseAgent):
 
         return collected
 
+    async def _async_collect_from_knowledge(
+        self, task: Task, target: int, supplement_request: Optional[str]
+    ) -> list[dict]:
+        """비동기 LLM 지식 기반으로 명언을 수집한다."""
+        prompt = self._build_prompt(task, target, supplement_request)
+        messages = [{"role": "user", "content": prompt}]
+
+        try:
+            self.log(f"Claude API 비동기 호출 중... (목표: {target}개)")
+            raw = await self.async_call_llm(messages, temperature=0.7)
+            self.log(f"API 응답 수신: {len(raw)}자")
+
+            if not raw.strip():
+                self.log("경고: 빈 응답")
+                return []
+
+            return self._parse_collected(raw, target)
+
+        except Exception as e:
+            self.log(f"오류: {e}")
+            traceback.print_exc()
+            return []
+
     def _collect_from_knowledge(
         self, task: Task, target: int, supplement_request: Optional[str]
     ) -> list[dict]:
-        """LLM 지식 기반으로 명언을 수집한다."""
+        """LLM 지식 기반으로 명언을 수집한다 (동기 폴백)."""
         prompt = self._build_prompt(task, target, supplement_request)
         messages = [{"role": "user", "content": prompt}]
 

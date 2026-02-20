@@ -30,7 +30,7 @@ class FinalValidator(BaseAgent):
         messages = [{"role": "user", "content": prompt}]
 
         try:
-            raw = self.call_llm(messages, temperature=0.3)
+            raw = await self.async_call_llm(messages, temperature=0.3)
             result = self._extract_json(raw)
 
             if not isinstance(result, dict):

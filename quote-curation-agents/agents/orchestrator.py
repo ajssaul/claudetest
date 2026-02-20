@@ -203,7 +203,7 @@ class Orchestrator(BaseAgent):
             return False
         return True
 
-    def parse_user_request(self, user_request: str) -> Task:
+    async def parse_user_request(self, user_request: str) -> Task:
         """사용자 요청을 파싱하여 Task 객체로 변환한다."""
         self.log(f"사용자 요청 파싱: {user_request}")
 
@@ -213,7 +213,7 @@ class Orchestrator(BaseAgent):
         }]
 
         try:
-            result = self.call_llm_json(messages, temperature=0.3)
+            result = await self.async_call_llm_json(messages, temperature=0.3)
             task = Task(
                 topic=result.get("topic", ""),
                 leaders=result.get("leaders", []),
@@ -240,7 +240,7 @@ class Orchestrator(BaseAgent):
             최종 결과물 (TSV 형식 문자열)
         """
         # STEP 1: 사용자 요청 파싱
-        task = self.parse_user_request(user_request)
+        task = await self.parse_user_request(user_request)
         self.report.requested_count = task.count
 
         all_passed_wisdoms: list[dict] = []
