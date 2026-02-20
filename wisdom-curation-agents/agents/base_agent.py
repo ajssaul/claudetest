@@ -2,6 +2,7 @@ import json
 import re
 import os
 import logging
+import time
 import traceback
 from datetime import datetime
 from typing import Optional
@@ -62,14 +63,22 @@ class BaseAgent:
             temperature=temperature,
         )
 
-        try:
-            response = self.client.generate_content(
-                contents=contents,
-                generation_config=generation_config,
-            )
-        except Exception as e:
-            self.log(f"API 호출 실패: {e}")
-            raise
+        max_retries = 4
+        for attempt in range(max_retries):
+            try:
+                response = self.client.generate_content(
+                    contents=contents,
+                    generation_config=generation_config,
+                )
+                break
+            except Exception as e:
+                if "429" in str(e) and attempt < max_retries - 1:
+                    wait = 2 ** (attempt + 1)
+                    self.log(f"Rate limit 초과, {wait}초 후 재시도 ({attempt + 1}/{max_retries})")
+                    time.sleep(wait)
+                else:
+                    self.log(f"API 호출 실패: {e}")
+                    raise
 
         result = response.text or ""
         if not result.strip():
