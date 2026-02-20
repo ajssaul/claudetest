@@ -6,7 +6,7 @@ import traceback
 from datetime import datetime
 from typing import Optional
 
-import anthropic
+import google.generativeai as genai
 
 import config
 
@@ -20,7 +20,11 @@ class BaseAgent:
         self.name = name
         self.role = role
         self.system_prompt = self._load_system_prompt(system_prompt_file)
-        self.client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
+        genai.configure(api_key=config.GEMINI_API_KEY)
+        self.client = genai.GenerativeModel(
+            model_name=config.DEFAULT_MODEL,
+            system_instruction=self.system_prompt or None,
+        )
         self.model = config.DEFAULT_MODEL
         self.max_tokens = config.MAX_TOKENS
 
@@ -46,28 +50,28 @@ class BaseAgent:
         tools: Optional[list] = None,
         temperature: float = 0.7,
     ) -> str:
-        """Claude API 호출 래퍼."""
-        kwargs = {
-            "model": self.model,
-            "max_tokens": self.max_tokens,
-            "system": self.system_prompt,
-            "messages": list(messages),
-            "temperature": temperature,
-        }
-        # tools는 사용하지 않음 (web_search 호환성 문제 방지)
+        """Gemini API 호출 래퍼."""
+        # Anthropic 메시지 형식을 Gemini contents 형식으로 변환
+        contents = []
+        for msg in messages:
+            role = "user" if msg["role"] == "user" else "model"
+            contents.append({"role": role, "parts": [msg["content"]]})
+
+        generation_config = genai.types.GenerationConfig(
+            max_output_tokens=self.max_tokens,
+            temperature=temperature,
+        )
 
         try:
-            response = self.client.messages.create(**kwargs)
+            response = self.client.generate_content(
+                contents=contents,
+                generation_config=generation_config,
+            )
         except Exception as e:
             self.log(f"API 호출 실패: {e}")
             raise
 
-        text_parts = []
-        for block in response.content:
-            if block.type == "text":
-                text_parts.append(block.text)
-
-        result = "\n".join(text_parts)
+        result = response.text or ""
         if not result.strip():
             self.log("경고: API가 빈 텍스트를 반환했습니다")
 
@@ -78,7 +82,7 @@ class BaseAgent:
         messages: list,
         temperature: float = 0.5,
     ) -> dict:
-        """Claude API를 호출하고 JSON 응답을 파싱한다."""
+        """Gemini API를 호출하고 JSON 응답을 파싱한다."""
         raw = self.call_llm(messages, temperature=temperature)
         return self._extract_json(raw)
 

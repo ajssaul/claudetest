@@ -1,8 +1,8 @@
 import os
 
-# Anthropic API 설정
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-DEFAULT_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-20250514")
+# Google Gemini API 설정
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+DEFAULT_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
 MAX_TOKENS = 16384
 
 # 피드백 루프 제한
