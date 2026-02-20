@@ -529,21 +529,33 @@
             const lines = tsvData.trim().split("\n");
             if (lines.length < 2) return;
 
-            const headers = lines[0].split("\t");
+            // TSV 헤더 행 찾기 (leader_name 포함된 행)
+            let headerLineIdx = -1;
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].indexOf("leader_name") !== -1) {
+                    headerLineIdx = i;
+                    break;
+                }
+            }
+            if (headerLineIdx === -1) return;
+
+            const headers = lines[headerLineIdx].split("\t");
             const nameIdx = headers.indexOf("leader_name");
             const krIdx = headers.indexOf("wisdom_kr");
             const commentaryIdx = headers.indexOf("wisdom_commentary");
             const sourceIdx = headers.indexOf("source");
 
             resultBody.innerHTML = "";
+            let rowNum = 0;
 
-            for (let i = 1; i < lines.length; i++) {
+            for (let i = headerLineIdx + 1; i < lines.length; i++) {
                 const cols = lines[i].split("\t");
                 if (cols.length < 2) continue;
 
+                rowNum++;
                 const tr = document.createElement("tr");
                 tr.innerHTML = `
-                    <td>${i}</td>
+                    <td>${rowNum}</td>
                     <td class="td-name">${escapeHtml(cols[nameIdx] || "")}</td>
                     <td class="td-quote">${escapeHtml(cols[krIdx] || "")}</td>
                     <td class="td-commentary">${escapeHtml(cols[commentaryIdx] || "")}</td>
@@ -552,7 +564,7 @@
                 resultBody.appendChild(tr);
             }
 
-            let metaText = `${lines.length - 1}개 명언`;
+            let metaText = `${rowNum}개 명언`;
             if (elapsed) metaText += ` | ${elapsed}`;
             if (savePath) metaText += ` | ${savePath}`;
             resultMeta.textContent = metaText;

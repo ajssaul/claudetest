@@ -232,12 +232,12 @@ class Orchestrator(BaseAgent):
             # 기본 태스크 반환
             return Task(topic=user_request, count=10)
 
-    async def run_pipeline(self, user_request: str) -> str:
+    async def run_pipeline(self, user_request: str) -> dict:
         """
         양방향 피드백 루프가 포함된 전체 파이프라인을 실행한다.
 
         Returns:
-            최종 결과물 (TSV 형식 문자열)
+            {"tsv": TSV 형식 문자열, "report": 리포트 문자열 또는 None}
         """
         # STEP 1: 사용자 요청 파싱
         task = await self.parse_user_request(user_request)
@@ -309,7 +309,18 @@ class Orchestrator(BaseAgent):
         self.report.final_count = len(final_wisdoms)
         self.report.stage_tracking["final_passed"] = len(final_wisdoms)
 
-        return self._format_output(final_wisdoms, task)
+        tsv = self._format_tsv(final_wisdoms)
+        report = None
+        if self.report.should_show_report():
+            report = self.report.generate_report(
+                self.feedback_counter,
+                self.MAX_SAME_ROUTE,
+                self.MAX_PIPELINE_RESTART,
+                self.MAX_TOTAL_FEEDBACK,
+            )
+            self.log(report)
+
+        return {"tsv": tsv, "report": report}
 
     async def _organize_with_feedback(
         self, collected_data: list[dict], task: Task
@@ -493,31 +504,15 @@ class Orchestrator(BaseAgent):
 
         return all_wisdoms
 
-    def _format_output(self, wisdoms: list[dict], task: Task) -> str:
-        """최종 출력을 포맷한다."""
-        output_parts = []
-
-        # 강제 종료 시 리포트 출력
-        if self.report.should_show_report():
-            report_str = self.report.generate_report(
-                self.feedback_counter,
-                self.MAX_SAME_ROUTE,
-                self.MAX_PIPELINE_RESTART,
-                self.MAX_TOTAL_FEEDBACK,
-            )
-            output_parts.append(report_str)
-
-        # TSV 출력
-        header = Wisdom.tsv_header()
-        output_parts.append(header)
+    def _format_tsv(self, wisdoms: list[dict]) -> str:
+        """최종 TSV 출력을 생성한다 (헤더 + 데이터 행만)."""
+        output_parts = [Wisdom.tsv_header()]
 
         for w in wisdoms:
             try:
-                # dict를 Wisdom 모델로 변환 시도
                 wisdom_obj = self._dict_to_wisdom(w)
                 output_parts.append(wisdom_obj.to_tsv_row())
             except Exception:
-                # 모델 변환 실패 시 직접 TSV 행 생성
                 row = self._dict_to_tsv_row(w)
                 output_parts.append(row)
 

@@ -148,23 +148,30 @@ async def run():
     orchestrator = Orchestrator()
 
     start_time = datetime.now()
-    result = await orchestrator.run_pipeline(user_request)
+    pipeline_result = await orchestrator.run_pipeline(user_request)
     elapsed = datetime.now() - start_time
+
+    tsv_data = pipeline_result["tsv"]
+    report = pipeline_result.get("report")
 
     print("-" * 60)
     print(f"\n실행 시간: {elapsed}\n")
+
+    # 강제 종료 리포트 출력
+    if report:
+        print(report)
 
     # 결과 출력
     if args.output:
         # 파일로 저장
         os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
         with open(args.output, "w", encoding="utf-8") as f:
-            f.write(result)
+            f.write(tsv_data)
         print(f"결과가 {args.output}에 저장되었습니다.")
     else:
         # stdout 출력
         print("```")
-        print(result)
+        print(tsv_data)
         print("```")
 
     # output 디렉토리에도 자동 저장
@@ -172,7 +179,7 @@ async def run():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     auto_save_path = os.path.join(config.OUTPUT_DIR, f"result_{timestamp}.tsv")
     with open(auto_save_path, "w", encoding="utf-8") as f:
-        f.write(result)
+        f.write(tsv_data)
     print(f"\n자동 저장: {auto_save_path}")
 
 

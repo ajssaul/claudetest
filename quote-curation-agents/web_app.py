@@ -84,18 +84,26 @@ def run_pipeline_in_thread(job_id, user_request):
 
         orchestrator = Orchestrator()
         start_time = datetime.now()
-        result = loop.run_until_complete(orchestrator.run_pipeline(user_request))
+        pipeline_result = loop.run_until_complete(orchestrator.run_pipeline(user_request))
         elapsed = datetime.now() - start_time
+
+        tsv_data = pipeline_result["tsv"]
+        report = pipeline_result.get("report")
+
+        # 리포트가 있으면 로그에 추가 (강제 종료 시)
+        if report:
+            for line in report.strip().split("\n"):
+                jobs[job_id]["logs"].append(line)
 
         # output 디렉토리에 자동 저장
         os.makedirs(config.OUTPUT_DIR, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         save_path = os.path.join(config.OUTPUT_DIR, f"result_{timestamp}.tsv")
         with open(save_path, "w", encoding="utf-8") as f:
-            f.write(result)
+            f.write(tsv_data)
 
         jobs[job_id]["status"] = "completed"
-        jobs[job_id]["result"] = result
+        jobs[job_id]["result"] = tsv_data
         jobs[job_id]["save_path"] = save_path
         jobs[job_id]["elapsed"] = str(elapsed)
         jobs[job_id]["logs"].append(f"완료! (소요 시간: {elapsed})")
