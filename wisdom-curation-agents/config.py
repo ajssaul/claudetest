@@ -1,8 +1,8 @@
 import os
 
-# Groq API 설정
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
-DEFAULT_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+# Anthropic API 설정
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+DEFAULT_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-20250514")
 MAX_TOKENS = 16384
 
 # 피드백 루프 제한

@@ -30,7 +30,7 @@
 
 ```bash
 pip install -r requirements.txt
-export GROQ_API_KEY="your-api-key"
+export ANTHROPIC_API_KEY="your-api-key"
 ```
 
 ## 사용법
@@ -56,11 +56,11 @@ python main.py --topic "투자 철학" --leaders "워런 버핏" --count 5 --out
 
 ## 모델
 
-기본 모델: `llama-3.3-70b-versatile`
+기본 모델: `claude-sonnet-4-20250514`
 
 환경 변수로 오버라이드 가능:
 ```bash
-export GROQ_MODEL="llama-3.3-70b-versatile"
+export CLAUDE_MODEL="claude-sonnet-4-20250514"
 ```
 
 ## 프로젝트 구조

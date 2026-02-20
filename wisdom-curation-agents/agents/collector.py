@@ -57,7 +57,7 @@ class Collector(BaseAgent):
         messages = [{"role": "user", "content": prompt}]
 
         try:
-            self.log("Groq API 호출 중...")
+            self.log("Claude API 호출 중...")
             raw = self.call_llm(messages, temperature=0.7)
             self.log(f"API 응답 수신: {len(raw)}자")
 

@@ -30,7 +30,7 @@
 
 ```bash
 pip install -r requirements.txt
-export GROQ_API_KEY="your-api-key"
+export ANTHROPIC_API_KEY="your-api-key"
 ```
 
 ## 사용법
