@@ -188,7 +188,7 @@ if __name__ == "__main__":
 
     print("\n" + "=" * 50)
     print("  명언 큐레이션 웹 UI")
-    print("  http://localhost:5000")
+    print("  http://localhost:8080")
     print("=" * 50 + "\n")
 
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    app.run(host="0.0.0.0", port=8080, debug=False)
