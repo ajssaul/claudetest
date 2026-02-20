@@ -1,7 +1,7 @@
 """
 웹 검색 도구.
-Anthropic Claude의 web_search tool을 활용하여 명언 관련 페이지를 수집한다.
-대안으로 DuckDuckGo 인스턴트 검색도 지원한다.
+명언 관련 페이지를 검색·수집한다.
+DuckDuckGo 인스턴트 검색을 지원한다.
 """
 
 import json
@@ -14,9 +14,9 @@ logger = logging.getLogger("wisdom-agents.tools.web_search")
 
 
 class WebSearchTool:
-    """Claude tool_use의 web_search를 통해 웹 검색을 수행한다."""
+    """웹 검색을 수행한다."""
 
-    # Claude tool_use에서 사용할 도구 정의
+    # 웹 검색 도구 정의
     TOOL_DEFINITION = {
         "type": "web_search_20250305",
         "name": "web_search",
