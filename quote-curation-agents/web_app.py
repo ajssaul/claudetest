@@ -25,7 +25,8 @@ from flask import Flask, render_template, request, jsonify, Response
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import config
-from agents.orchestrator import Orchestrator
+from agents.orchestrator import run_pipeline_batched
+from history import load_previous_wisdoms
 
 app = Flask(__name__)
 
@@ -82,9 +83,15 @@ def run_pipeline_in_thread(job_id, user_request):
         jobs[job_id]["status"] = "running"
         jobs[job_id]["logs"].append(f"요청 접수: {user_request}")
 
-        orchestrator = Orchestrator()
+        # 이전 결과 로드 (중복 방지)
+        previous_wisdoms = load_previous_wisdoms()
+        if previous_wisdoms:
+            jobs[job_id]["logs"].append(f"이전 결과 {len(previous_wisdoms)}개 로드 (중복 방지 적용)")
+
         start_time = datetime.now()
-        pipeline_result = loop.run_until_complete(orchestrator.run_pipeline(user_request))
+        pipeline_result = loop.run_until_complete(
+            run_pipeline_batched(user_request, previous_wisdoms=previous_wisdoms)
+        )
         elapsed = datetime.now() - start_time
 
         tsv_data = pipeline_result["tsv"]
