@@ -1,6 +1,11 @@
 """
 오케스트레이터 (Orchestrator) 에이전트.
 전체 파이프라인을 조율하고 양방향 피드백 루프를 중앙에서 관리한다.
+
+최적화 사항:
+- 최종 확인(STEP 5)을 프로그래밍 기반으로 전환 (LLM 호출 제거)
+- 검수 루프에서 PASS된 항목 재검수 방지
+- 5→4, 5→2 피드백 경로 제거 (프로그래밍 검증으로 대체)
 """
 
 import json
@@ -58,7 +63,7 @@ class PipelineReport:
 
         # 어떤 한도가 초과되었는지
         total_used = sum(feedback_counter.values())
-        restart_count = feedback_counter.get("4→2", 0) + feedback_counter.get("5→2", 0)
+        restart_count = feedback_counter.get("4→2", 0)
 
         for route, count in feedback_counter.items():
             if count >= max_same:
@@ -89,9 +94,9 @@ class PipelineReport:
                 route_reasons[route] = []
             route_reasons[route].append(reason)
 
-        for route in ["3→2", "4→3", "4→2", "5→4", "5→2"]:
+        for route in ["3→2", "4→3", "4→2"]:
             count = feedback_counter.get(route, 0)
-            if route in ["4→2", "5→2"]:
+            if route == "4→2":
                 limit = max_restart
             else:
                 limit = max_same
@@ -157,12 +162,11 @@ class Orchestrator(BaseAgent):
         self.reviewer = Reviewer()
         self.final_validator = FinalValidator()
 
+        # 피드백 경로: 3→2 (정리자→수집자), 4→3 (검수자→정리자), 4→2 (검수자→수집자)
         self.feedback_counter = {
             "3→2": 0,
             "4→3": 0,
             "4→2": 0,
-            "5→4": 0,
-            "5→2": 0,
         }
         self.total_feedback_count = 0
         self.MAX_SAME_ROUTE = config.MAX_SAME_ROUTE_FEEDBACK
@@ -176,19 +180,18 @@ class Orchestrator(BaseAgent):
         """해당 경로의 피드백이 아직 가능한지 확인한다."""
         if self.total_feedback_count >= self.MAX_TOTAL_FEEDBACK:
             return False
-        if route in ["4→2", "5→2"]:
-            restart_count = self.feedback_counter["4→2"] + self.feedback_counter["5→2"]
-            if restart_count >= self.MAX_PIPELINE_RESTART:
+        if route == "4→2":
+            if self.feedback_counter["4→2"] >= self.MAX_PIPELINE_RESTART:
                 return False
-        if self.feedback_counter[route] >= self.MAX_SAME_ROUTE:
+        if self.feedback_counter.get(route, 0) >= self.MAX_SAME_ROUTE:
             return False
         return True
 
     def record_feedback(self, route: str, reason: str = ""):
         """피드백 횟수를 기록한다."""
-        self.feedback_counter[route] += 1
+        self.feedback_counter[route] = self.feedback_counter.get(route, 0) + 1
         self.total_feedback_count += 1
-        limit = self.MAX_PIPELINE_RESTART if route in ["4→2", "5→2"] else self.MAX_SAME_ROUTE
+        limit = self.MAX_PIPELINE_RESTART if route == "4→2" else self.MAX_SAME_ROUTE
         self._feedback_reasons.append((route, self.feedback_counter[route], limit, reason))
         self.report.feedback_log.append((route, self.feedback_counter[route], limit, reason))
 
@@ -197,8 +200,7 @@ class Orchestrator(BaseAgent):
         if self.total_feedback_count >= self.MAX_TOTAL_FEEDBACK:
             self.report.termination_reason = "전체 피드백 총 횟수 초과"
             return False
-        restart_count = self.feedback_counter["4→2"] + self.feedback_counter["5→2"]
-        if restart_count >= self.MAX_PIPELINE_RESTART:
+        if self.feedback_counter.get("4→2", 0) >= self.MAX_PIPELINE_RESTART:
             self.report.termination_reason = "파이프라인 재시작 횟수 초과"
             return False
         return True
@@ -232,20 +234,34 @@ class Orchestrator(BaseAgent):
             # 기본 태스크 반환
             return Task(topic=user_request, count=10)
 
-    async def run_pipeline(self, user_request: str) -> dict:
+    async def run_pipeline(self, user_request: str, previous_wisdoms: list[dict] | None = None) -> dict:
         """
-        양방향 피드백 루프가 포함된 전체 파이프라인을 실행한다.
+        피드백 루프가 포함된 전체 파이프라인을 실행한다.
+
+        흐름: 파싱 → [수집 → 정리 → 검수] (반복) → 프로그래밍 검증 → 출력
+
+        Args:
+            user_request: 사용자 요청 문자열
+            previous_wisdoms: 이전 실행에서 최종 출력된 명언 리스트 (중복 방지용)
 
         Returns:
             {"tsv": TSV 형식 문자열, "report": 리포트 문자열 또는 None}
         """
+        self._previous_wisdoms = previous_wisdoms or []
+        if self._previous_wisdoms:
+            self.log(f"이전 명언 {len(self._previous_wisdoms)}개 중복 방지 적용")
+
         # STEP 1: 사용자 요청 파싱
         task = await self.parse_user_request(user_request)
         self.report.requested_count = task.count
 
         all_passed_wisdoms: list[dict] = []
+        max_iterations = 5  # 무한 루프 방지
 
-        while len(all_passed_wisdoms) < task.count:
+        for iteration in range(max_iterations):
+            if len(all_passed_wisdoms) >= task.count:
+                break
+
             if not self.can_continue():
                 self.log("피드백 한도 초과. 강제 종료.")
                 break
@@ -255,9 +271,11 @@ class Orchestrator(BaseAgent):
             collect_target = int(needed * config.COLLECTION_MULTIPLIER)
             self.log(f"[수집 단계] 목표: {collect_target}개 (부족: {needed}개)")
 
+            # 이전 명언 + 현재 통과 명언을 합쳐 중복 방지
+            exclude_wisdoms = self._previous_wisdoms + all_passed_wisdoms
             collected_data = await self.collector.run(
                 task=task,
-                exclude=all_passed_wisdoms,
+                exclude=exclude_wisdoms,
                 target=collect_target,
             )
             self.report.stage_tracking["collected"] += len(collected_data)
@@ -293,16 +311,13 @@ class Orchestrator(BaseAgent):
 
             all_passed_wisdoms.extend(review_result)
 
-            # STEP 5: 최종 확인 (5→4, 5→2 반려 가능)
-            final_result = await self._validate_with_feedback(all_passed_wisdoms, task)
+        # STEP 5: 프로그래밍 기반 최종 검증 (중복 제거, 필드/카테고리/mood 보정)
+        validation = self.final_validator.validate(all_passed_wisdoms, task, previous_wisdoms=self._previous_wisdoms)
+        all_passed_wisdoms = validation["final_wisdoms"]
 
-            if final_result == "NEED_MORE_COLLECTION":
-                continue
-            elif final_result == "RETURN_TO_REVIEWER":
-                continue
-            elif isinstance(final_result, list):
-                all_passed_wisdoms = final_result
-                break  # 최종 통과
+        if validation["removed_count"] > 0:
+            self.report.stage_tracking["final_removed"] = validation["removed_count"]
+            self.report.stage_tracking["final_removed_reasons"] = validation.get("removed_reasons", {})
 
         # STEP 6: 결과 출력
         final_wisdoms = all_passed_wisdoms[:task.count]
@@ -363,35 +378,43 @@ class Orchestrator(BaseAgent):
         task: Task,
         existing_passed: list[dict],
     ):
-        """검수 단계. REVISE→정리자 반려 (4→3), 수량 부족→수집자 반려 (4→2)."""
-        current_wisdoms = organized_data
+        """
+        검수 단계. REVISE→정리자 반려 (4→3), 수량 부족→수집자 반려 (4→2).
+
+        최적화: PASS된 항목은 즉시 확정하고, REVISE된 항목만 재검수한다.
+        """
+        current_to_review = organized_data
+        all_passed_in_review: list[dict] = []
 
         for revision_round in range(self.MAX_SAME_ROUTE + 1):
-            review_result = await self.reviewer.run(current_wisdoms, task)
+            review_result = await self.reviewer.run(current_to_review, task)
             reviews = review_result.get("reviews", [])
 
             # 검수 결과 분류
-            passed = []
+            round_passed = []
             revise_wisdoms = []
             revise_instructions = []
             reject_count = 0
 
             for i, review in enumerate(reviews):
-                if i >= len(current_wisdoms):
+                if i >= len(current_to_review):
                     break
                 verdict = review.get("verdict", "PASS")
                 if verdict == "PASS":
-                    passed.append(current_wisdoms[i])
+                    round_passed.append(current_to_review[i])
                 elif verdict == "REVISE":
-                    revise_wisdoms.append(current_wisdoms[i])
+                    revise_wisdoms.append(current_to_review[i])
                     revise_instructions.append(
                         review.get("revision_instructions", "수정 필요")
                     )
                 elif verdict == "REJECT":
                     reject_count += 1
 
-            self.report.stage_tracking["review_passed"] += len(passed)
+            self.report.stage_tracking["review_passed"] += len(round_passed)
             self.report.stage_tracking["review_rejected"] += reject_count
+
+            # PASS 항목 즉시 확정 (재검수 방지)
+            all_passed_in_review.extend(round_passed)
 
             # REVISE 항목이 없으면 검수 완료
             if not revise_wisdoms:
@@ -400,7 +423,7 @@ class Orchestrator(BaseAgent):
             # 4→3 피드백: 정리자에게 수정 요청
             if not self.can_feedback("4→3"):
                 self.log("4→3 피드백 한도 초과. REVISE 항목은 강제 통과 처리.")
-                passed.extend(revise_wisdoms)
+                all_passed_in_review.extend(revise_wisdoms)
                 break
 
             self.record_feedback(
@@ -415,25 +438,11 @@ class Orchestrator(BaseAgent):
             revised = await self.organizer.revise(revise_wisdoms, revise_instructions)
             self.report.stage_tracking["review_revised_to_pass"] += len(revised)
 
-            # 수정된 명언 + PASS 명언으로 재검수
-            current_wisdoms = passed + revised
-
-        # 최종 PASS 목록
-        if not passed and not current_wisdoms:
-            passed = []
-        elif not passed:
-            # 재검수 후 전체 다시 확인
-            final_review = await self.reviewer.run(current_wisdoms, task)
-            passed = self.reviewer.get_passed(
-                current_wisdoms, final_review.get("reviews", [])
-            )
-            # 재검수에서도 PASS가 없으면 현재 데이터로 강제 진행
-            if not passed and current_wisdoms:
-                self.log("재검수 PASS 없음. 피드백 한도 소진으로 현재 데이터를 강제 통과 처리.")
-                passed = current_wisdoms
+            # 수정된 항목만 다음 라운드에서 재검수 (PASS 항목은 이미 확정)
+            current_to_review = revised
 
         # 4→2: 수량 부족 확인
-        total_available = len(existing_passed) + len(passed)
+        total_available = len(existing_passed) + len(all_passed_in_review)
         if total_available < task.count:
             shortage = task.count - total_available
 
@@ -445,68 +454,14 @@ class Orchestrator(BaseAgent):
                     f"수량 부족 {shortage}개, 수집자에게 추가 수집 요청"
                 )
                 # 현재까지 통과분을 existing_passed에 반영
-                existing_passed.extend(passed)
+                existing_passed.extend(all_passed_in_review)
                 return "NEED_MORE_COLLECTION"
             else:
                 self.log(
                     f"4→2 피드백 한도 초과. {total_available}개로 진행."
                 )
 
-        return passed
-
-    async def _validate_with_feedback(
-        self, all_wisdoms: list[dict], task: Task
-    ):
-        """최종 확인 단계. 5→4, 5→2 반려 가능."""
-        validation = await self.final_validator.run(all_wisdoms, task)
-        action = validation.get("action", "APPROVED")
-
-        if action == "APPROVED":
-            final_wisdoms = validation.get("final_wisdoms", all_wisdoms)
-            removed = validation.get("removed_count", 0)
-            self.report.stage_tracking["final_removed"] = removed
-            if validation.get("removed_reasons"):
-                self.report.stage_tracking["final_removed_reasons"] = validation["removed_reasons"]
-            return final_wisdoms
-
-        if action == "RETURN_TO_REVIEWER":
-            if self.can_feedback("5→4"):
-                reason = validation.get("reason", "품질/적합성 문제")
-                self.record_feedback("5→4", reason)
-                self.log(
-                    f"[5→4 반려] ({self.feedback_counter['5→4']}/"
-                    f"{self.MAX_SAME_ROUTE}회): {reason}"
-                )
-
-                # 문제 항목 제거 후 재검수 필요
-                problematic = set(validation.get("problematic_items", []))
-                all_wisdoms[:] = [
-                    w for i, w in enumerate(all_wisdoms)
-                    if i not in problematic
-                ]
-                return "RETURN_TO_REVIEWER"
-            else:
-                self.log("5→4 피드백 한도 초과. 현재 결과물로 진행.")
-                passing = validation.get("passing_subset", all_wisdoms)
-                return passing
-
-        if action == "RETURN_TO_COLLECTOR_VIA_ORCHESTRATOR":
-            if self.can_feedback("5→2"):
-                reason = validation.get("reason", "수량 크게 부족")
-                self.record_feedback("5→2", reason)
-                self.log(
-                    f"[5→2 반려] ({self.feedback_counter['5→2']}/"
-                    f"{self.MAX_PIPELINE_RESTART}회): {reason}"
-                )
-                # 통과분만 유지
-                all_wisdoms[:] = validation.get("passed_wisdoms", all_wisdoms)
-                return "NEED_MORE_COLLECTION"
-            else:
-                self.log("5→2 피드백 한도 초과. 현재 결과물로 진행.")
-                passing = validation.get("passed_wisdoms", all_wisdoms)
-                return passing
-
-        return all_wisdoms
+        return all_passed_in_review
 
     def _format_tsv(self, wisdoms: list[dict]) -> str:
         """최종 TSV 출력을 생성한다 (헤더 + 데이터 행만)."""

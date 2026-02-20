@@ -1,110 +1,127 @@
 """
 최종 확인자 (Final Validator) 에이전트.
-전체 산출물이 사용자 요구사항에 부합하는지 최종 확인한다.
+프로그래밍 기반 검증으로 LLM 호출 없이 최종 확인을 수행한다.
+
+검증 항목:
+- 중복 명언 제거 (원문 유사도 기반)
+- 필수 필드 완성도 확인
+- 카테고리/mood 유효값 검증 및 자동 보정
+- 수량 확인
 """
 
-import json
 import logging
-from typing import Optional
+from datetime import datetime
 
-from .base_agent import BaseAgent
 from models.task import Task
+from models.wisdom import VALID_CATEGORIES, VALID_MOODS
 
 logger = logging.getLogger("quote-agents.final_validator")
 
+# 필수 필드 목록
+REQUIRED_FIELDS = [
+    "leader_name", "leader_name_en", "leader_title",
+    "wisdom_original", "wisdom_kr", "wisdom_commentary",
+    "source", "source_type",
+]
 
-class FinalValidator(BaseAgent):
-    """최종 확인 에이전트."""
+
+class FinalValidator:
+    """프로그래밍 기반 최종 검증. LLM 호출 없음."""
 
     def __init__(self):
-        super().__init__(
-            name="최종확인자",
-            role="전체 산출물이 사용자 요구사항에 부합하는지 최종 확인",
-            system_prompt_file="final_validator_system.txt",
-        )
+        self.name = "최종확인자"
 
-    async def run(self, wisdoms: list[dict], task: Task) -> dict:
+    def log(self, message: str):
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        log_msg = f"[{timestamp}] [{self.name}] {message}"
+        logger.info(log_msg)
+        print(log_msg)
+
+    def validate(self, wisdoms: list[dict], task: Task, previous_wisdoms: list[dict] | None = None) -> dict:
+        """
+        프로그래밍 기반 최종 검증을 수행한다.
+
+        Args:
+            wisdoms: 검수 통과한 명언 리스트
+            task: 작업 정보
+            previous_wisdoms: 이전 실행에서 최종 출력된 명언 리스트 (중복 방지용)
+
+        Returns:
+            {
+                "action": "APPROVED",
+                "final_wisdoms": [...],
+                "removed_count": int,
+                "removed_reasons": {index_str: reason},
+            }
+        """
         self.log(f"최종 확인 시작: {len(wisdoms)}개 명언, 요청={task.count}개")
 
-        prompt = self._build_prompt(wisdoms, task)
-        messages = [{"role": "user", "content": prompt}]
+        valid_wisdoms = []
+        removed_indices = []
+        removed_reasons = {}
+        seen_originals = set()
 
-        try:
-            raw = await self.async_call_llm(messages, temperature=0.3)
-            result = self._extract_json(raw)
+        # 이전 명언의 원문 키를 미리 등록하여 중복 방지
+        if previous_wisdoms:
+            for pw in previous_wisdoms:
+                prev_key = pw.get("wisdom_original", "").strip().lower()[:100]
+                if prev_key:
+                    seen_originals.add(prev_key)
+            self.log(f"이전 명언 {len(previous_wisdoms)}개 중복 방지 키 등록")
 
-            if not isinstance(result, dict):
-                return {"action": "APPROVED", "final_wisdoms": wisdoms, "removed_count": 0, "removed_reasons": {}}
+        for i, w in enumerate(wisdoms):
+            # 1. 필수 필드 확인
+            missing = [f for f in REQUIRED_FIELDS if not w.get(f)]
+            if missing:
+                removed_indices.append(i)
+                removed_reasons[str(i)] = f"필수 필드 누락: {', '.join(missing)}"
+                continue
 
-            action = result.get("action", "APPROVED")
+            # 2. 중복 확인 (원문 앞 100자 기준 — 이전 결과 포함)
+            original_key = w["wisdom_original"].strip().lower()[:100]
+            if original_key in seen_originals:
+                removed_indices.append(i)
+                removed_reasons[str(i)] = "중복 명언 (이전 결과 포함)"
+                continue
+            seen_originals.add(original_key)
 
-            if action == "APPROVED":
-                final_indices = result.get("final_wisdoms_indices", list(range(len(wisdoms))))
-                removed_indices = result.get("removed_indices", [])
-                removed_reasons = result.get("removed_reasons", {})
-                final_wisdoms = [wisdoms[i] for i in final_indices if i < len(wisdoms)]
-                self.log(f"최종 확인 완료: {len(final_wisdoms)}개 통과, {len(removed_indices)}개 제거")
-                return {
-                    "action": "APPROVED",
-                    "final_wisdoms": final_wisdoms,
-                    "removed_count": len(removed_indices),
-                    "removed_reasons": removed_reasons,
-                }
+            # 3. 카테고리 검증 및 자동 보정
+            category = w.get("category", "")
+            if category:
+                cats = [c.strip() for c in category.split("|")]
+                valid_cats = [c for c in cats if c in VALID_CATEGORIES]
+                w["category"] = "|".join(valid_cats) if valid_cats else "self-improvement"
+            else:
+                w["category"] = "self-improvement"
 
-            elif action == "RETURN_TO_REVIEWER":
-                self.log(f"검수자 반려: {result.get('reason', 'N/A')}")
-                problematic = result.get("problematic_items", [])
-                return {
-                    "action": "RETURN_TO_REVIEWER",
-                    "problematic_items": problematic,
-                    "reason": result.get("reason", ""),
-                    "instructions": result.get("instructions", ""),
-                    "passing_subset": [w for i, w in enumerate(wisdoms) if i not in problematic],
-                }
+            # 4. Mood 검증 및 자동 보정
+            mood = w.get("mood", "")
+            if mood:
+                moods = [m.strip() for m in mood.split("|")]
+                valid_moods_list = [m for m in moods if m in VALID_MOODS]
+                w["mood"] = "|".join(valid_moods_list) if valid_moods_list else "growth"
+            else:
+                w["mood"] = "growth"
 
-            elif action == "RETURN_TO_COLLECTOR_VIA_ORCHESTRATOR":
-                passed_indices = result.get("passed_wisdoms_indices", list(range(len(wisdoms))))
-                passed_wisdoms = [wisdoms[i] for i in passed_indices if i < len(wisdoms)]
-                self.log(f"수집 재시작: 통과 {len(passed_wisdoms)}개")
-                return {
-                    "action": "RETURN_TO_COLLECTOR_VIA_ORCHESTRATOR",
-                    "reason": result.get("reason", ""),
-                    "passed_wisdoms": passed_wisdoms,
-                    "additional_needed": result.get("additional_needed", 0),
-                    "topic": task.topic,
-                }
+            # 5. 기본값 보정
+            w.setdefault("source_url", "")
+            w.setdefault("source_making_date", "")
 
-            return {"action": "APPROVED", "final_wisdoms": wisdoms, "removed_count": 0, "removed_reasons": {}}
+            valid_wisdoms.append(w)
 
-        except Exception as e:
-            logger.error(f"최종 확인 오류: {e}")
-            return {"action": "APPROVED", "final_wisdoms": wisdoms, "removed_count": 0, "removed_reasons": {}}
+        removed_count = len(removed_indices)
+        if removed_count > 0:
+            reasons_summary = ", ".join(
+                f"#{idx}({reason})" for idx, reason in
+                list(removed_reasons.items())[:5]
+            )
+            self.log(f"검증 완료: {len(valid_wisdoms)}개 통과, {removed_count}개 제거 ({reasons_summary})")
+        else:
+            self.log(f"검증 완료: {len(valid_wisdoms)}개 전체 통과")
 
-    def _build_prompt(self, wisdoms: list[dict], task: Task) -> str:
-        parts = [f"아래 {len(wisdoms)}개 명언을 최종 확인해줘.\n"]
-        parts.append(f"■ 주제: {task.topic}")
-        if task.leaders:
-            parts.append(f"■ 인물: {', '.join(task.leaders)}")
-        parts.append(f"■ 요청 개수: {task.count}개")
-
-        parts.append(f"""
-■ 확인 사항:
-1. 주제 '{task.topic}'과 일치하는가?
-2. 품질이 일관적인가?
-3. 중복 명언이 있는가? (있으면 제거)
-4. 모든 필수 필드가 채워져 있는가?
-
-■ 명언 데이터:
-{json.dumps(wisdoms, ensure_ascii=False, indent=2)}
-
-반드시 아래 JSON 형식으로만 응답해라:
-```json
-{{
-  "action": "APPROVED",
-  "final_wisdoms_indices": [0, 1, 2],
-  "removed_indices": [],
-  "removed_reasons": {{}}
-}}
-```
-문제가 있으면 action을 "RETURN_TO_REVIEWER" 또는 "RETURN_TO_COLLECTOR_VIA_ORCHESTRATOR"로 변경.""")
-        return "\n".join(parts)
+        return {
+            "action": "APPROVED",
+            "final_wisdoms": valid_wisdoms,
+            "removed_count": removed_count,
+            "removed_reasons": removed_reasons,
+        }

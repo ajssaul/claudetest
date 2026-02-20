@@ -22,6 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import config
 from agents.orchestrator import Orchestrator
+from history import load_previous_wisdoms
 
 
 def setup_logging():
@@ -144,11 +145,16 @@ async def run():
     print(f"\n요청 접수: {user_request}\n")
     print("-" * 60)
 
+    # 이전 결과 로드 (중복 방지)
+    previous_wisdoms = load_previous_wisdoms()
+    if previous_wisdoms:
+        print(f"이전 결과 {len(previous_wisdoms)}개 로드 (중복 방지 적용)")
+
     # 오케스트레이터 실행
     orchestrator = Orchestrator()
 
     start_time = datetime.now()
-    pipeline_result = await orchestrator.run_pipeline(user_request)
+    pipeline_result = await orchestrator.run_pipeline(user_request, previous_wisdoms=previous_wisdoms)
     elapsed = datetime.now() - start_time
 
     tsv_data = pipeline_result["tsv"]

@@ -103,13 +103,14 @@ class Reviewer(BaseAgent):
 5. 원문 5~6문장 필수 확인 (비퍼블릭 도메인 도서 제외). 4문장 이하이면 REVISE → "앞뒤 맥락 포함하여 5~6문장으로 확장". 단 1주제 유지 위해 의도적 축소(최소 3문장)는 PASS
 6. 해설에 한국 특정 인물 실명이 있으면 REVISE → "실명 대신 일반 표현으로 변경" (단, 퍼블릭 도메인 인물과 원문 저자(leader_name) 본인은 예외)
 7. 번역 품질, 어투('-다' 체), 해설 품질(200~400자, 4~6문장)
-8. 카테고리/mood 유효성
+8. 도서 출처 한국어 제목: 한국어 번역본이 있는 도서인데 영어 원제만 표기된 경우 → REVISE "한국어 번역 제목으로 변경하고 영어 원제를 괄호로 병기"
+9. 카테고리/mood 유효성
 
 ■ 카테고리: business, marketing, leadership, self-improvement, philosophy, wealth, creativity, psychology, relationships
 ■ Mood: execution, growth, challenge, relationships, motivation, new-goal, comfort, contemplation, anxiety, habits, meaning
 
 ■ 명언 데이터:
-{json.dumps(wisdoms, ensure_ascii=False, indent=2)}
+{json.dumps(wisdoms, ensure_ascii=False, separators=(',', ':'))}
 
 반드시 아래 JSON 형식으로만 응답해라:
 ```json

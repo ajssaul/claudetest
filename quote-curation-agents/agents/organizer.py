@@ -36,7 +36,7 @@ class Organizer(BaseAgent):
         messages = [{"role": "user", "content": user_message}]
 
         try:
-            raw = await self.async_call_llm(messages, temperature=0.5)
+            raw = await self.async_call_llm(messages, temperature=0.3)
             result = self._extract_json(raw)
 
             # 배열이면 바로 wisdoms
@@ -81,10 +81,12 @@ class Organizer(BaseAgent):
 수정 규칙:
 - 번역은 '-다' 체, 성숙한 어투
 - 해설은 200~400자, 4~6문장, 원문 범위 내, '-다' 체
-- 해설 목적: 읽는 사람에게 유의미한 인사이트(깨달음, 새로운 시각)를 줄 것
+- 해설 목적: 읽는 사람에게 유의미한 인사이트(깨달음, 새로운 시각)를 줄 것. 뻔한 조언("도전이 중요하다", "노력하면 성공한다") 금지
+- 해설 작성 순서: 핵심 메시지 정리 → 왜 중요한지 논거 → 한국 맥락 구체적 사례 → 실천적 시사점
 - 해설에서 한국 기업·문화·사회를 비하/부정 평가하는 표현 금지 (예: "한국은 아직~", "국내 기업은 ~하지 못한다" 등). 긍정적 사례나 발전 가능성 중심으로 서술
 - 해설에서 한국 특정 인물 실명 사용 금지 ("한 대기업 CEO가..." 등으로 표현). 단, 퍼블릭 도메인 인물과 원문 저자(leader_name) 본인은 예외
 - 비퍼블릭 도메인 도서: 원문 2문장, 번역은 재구성 의역
+- 도서 출처: 한국어 번역본이 있으면 한국어 제목 사용, 영어 원제 괄호 병기 (예: "원칙 (Principles: Life and Work)")
 
 {"".join(items)}
 
@@ -95,7 +97,7 @@ class Organizer(BaseAgent):
 
         messages = [{"role": "user", "content": prompt}]
         try:
-            raw = await self.async_call_llm(messages, temperature=0.5)
+            raw = await self.async_call_llm(messages, temperature=0.3)
             result = self._extract_json(raw)
             if isinstance(result, dict):
                 result = result.get("wisdoms", result.get("revised", [result]))
@@ -144,19 +146,48 @@ class Organizer(BaseAgent):
             parts.append("\n⚠️ 강제 진행 모드: 가능한 데이터로 최대한 정리해라.")
 
         parts.append(f"""
-■ 정리 규칙:
-1. 주제 관련성 높은 것 우선
-2. 원문: 5~6문장 필수 (비퍼블릭 도메인 도서만 최대 2문장). 4문장 이하이면 반드시 앞뒤 맥락 포함하여 5문장 이상으로 확장. 1명언 1주제 유지 어려우면 최소 3문장까지 축소 가능
-3. 번역(wisdom_kr): '-다' 체, 비퍼블릭 도메인은 재구성 의역 필수
-4. 해설(wisdom_commentary): 200~400자, 4~6문장, '-다' 체
-   - 목적: 읽는 사람에게 유의미한 인사이트(깨달음, 새로운 시각)를 주는 것
-   - 한국의 예를 들 때 특정 인물 실명 사용 금지 (예: "한 대기업 CEO가..." 등으로 표현). 단, 퍼블릭 도메인 인물(1954년 이전 사망)과 원문을 말한 사람(leader_name) 본인의 이름은 사용 가능
-   - 한국 기업·문화·사회를 비하/부정 평가하는 표현 금지 (예: "한국은 아직~", "국내 기업은 ~하지 못한다" 등). 긍정적 사례나 발전 가능성 중심으로 서술
-5. 카테고리: business|marketing|leadership|self-improvement|philosophy|wealth|creativity|psychology|relationships
-6. Mood: execution|growth|challenge|relationships|motivation|new-goal|comfort|contemplation|anxiety|habits|meaning
+■ 정리 규칙 (검수자가 이 기준으로 엄격 검수하므로 반드시 준수):
+
+1. 원문 길이 (가장 흔한 반려 사유):
+   - 비퍼블릭 도메인 도서 제외: 반드시 5~6문장. 4문장 이하이면 무조건 앞뒤 맥락 포함하여 5문장 이상으로 확장
+   - 1명언 1주제 유지 어려우면 최소 3문장까지 축소 가능 (예외적)
+   - 비퍼블릭 도메인 도서: 최대 2문장
+   - ⚠️ 문장 수를 직접 세어서 확인해라
+
+2. 번역(wisdom_kr):
+   - '-다' 체 어투 (모든 문장 끝이 '-다'로 끝나는지 확인)
+   - 원문의 구체적 사례와 숫자를 반드시 포함
+   - 비퍼블릭 도메인 도서: 재구성 의역 필수 (문장 구조를 완전히 바꿔라)
+
+3. 해설(wisdom_commentary) — 품질이 핵심:
+   - 200~400자, 4~6문장 (글자 수와 문장 수를 세어 확인)
+   - '-다' 체 어투
+   - ⚠️ 핵심: 뻔한 조언 금지. "도전이 중요하다", "노력하면 성공한다" 같은 누구나 아는 말은 쓰지 마라
+   - 원문의 핵심 메시지 → 왜 중요한지 논거 → 한국 맥락 구체적 사례 → 실천적 시사점 순서로 작성
+   - 한국의 예를 들 때 특정 인물 실명 사용 금지 ("한 대기업 CEO가..." 등으로 표현). 단, 퍼블릭 도메인 인물(1954년 이전 사망)과 원문을 말한 사람(leader_name) 본인의 이름은 사용 가능
+   - 한국 비하 표현 금지 ("한국은 아직~" 등)
+   - 원문과 동일한 영역의 예시만 사용 (비즈니스 명언→비즈니스 사례, 투자 명언→투자 사례)
+
+4. 출처: 구체적으로 명시 ("인터뷰"만 쓰지 말고 "Forbes Interview, 2015" 등으로)
+
+5. 도서 출처 한국어 제목: source_type이 도서인 경우, 한국어 번역본이 출간된 도서라면 한국어 제목을 사용하고 영어 원제를 괄호로 병기
+   예: "원칙 (Principles: Life and Work)", "린 스타트업 (The Lean Startup)", "손자병법 (The Art of War)"
+   한국어 번역본이 없는 도서는 영어 원제 유지
+
+6. source_type: 비퍼블릭 도메인 도서는 반드시 "도서 (비퍼블릭 도메인)"으로 표기
+
+7. 카테고리: business|marketing|leadership|self-improvement|philosophy|wealth|creativity|psychology|relationships
+8. Mood: execution|growth|challenge|relationships|motivation|new-goal|comfort|contemplation|anxiety|habits|meaning
 
 ■ 수집 데이터:
-{json.dumps(collected_data, ensure_ascii=False, indent=2)}
+{json.dumps(collected_data, ensure_ascii=False, separators=(',', ':'))}
+
+■ 출력 전 자기 검증: 각 명언에 대해 아래를 반드시 확인한 후 출력해라.
+- 원문 문장 수가 기준에 맞는가?
+- 번역이 모두 '-다' 체인가?
+- 해설이 200~400자, 4~6문장이고 구체적 인사이트가 있는가?
+- 해설에 실명/비하 표현이 없는가?
+- 도서 출처인 경우, 한국어 번역 제목이 있으면 한국어로 표기했는가?
 
 반드시 아래 JSON 형식으로만 응답해라:
 ```json
