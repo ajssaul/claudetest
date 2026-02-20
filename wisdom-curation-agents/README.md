@@ -30,7 +30,7 @@
 
 ```bash
 pip install -r requirements.txt
-export GEMINI_API_KEY="your-api-key"
+export GROQ_API_KEY="your-api-key"
 ```
 
 ## 사용법

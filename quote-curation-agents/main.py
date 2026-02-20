@@ -82,7 +82,7 @@ def parse_args():
         "--model",
         type=str,
         default=None,
-        help="사용할 Gemini 모델 (기본: gemini-2.0-flash)",
+        help="사용할 Groq 모델 (기본: llama-3.3-70b-versatile)",
     )
     return parser.parse_args()
 
@@ -112,9 +112,9 @@ async def run():
     args = parse_args()
 
     # API 키 확인
-    if not config.GEMINI_API_KEY:
-        print("오류: GEMINI_API_KEY 환경 변수가 설정되지 않았습니다.", file=sys.stderr)
-        print("export GEMINI_API_KEY='your-api-key'", file=sys.stderr)
+    if not config.GROQ_API_KEY:
+        print("오류: GROQ_API_KEY 환경 변수가 설정되지 않았습니다.", file=sys.stderr)
+        print("export GROQ_API_KEY='your-api-key'", file=sys.stderr)
         sys.exit(1)
 
     # 모델 설정 오버라이드

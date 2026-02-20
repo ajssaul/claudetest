@@ -2,11 +2,12 @@ import json
 import re
 import os
 import logging
+import time
 import traceback
 from datetime import datetime
 from typing import Optional
 
-import google.generativeai as genai
+from groq import Groq
 
 import config
 
@@ -20,11 +21,7 @@ class BaseAgent:
         self.name = name
         self.role = role
         self.system_prompt = self._load_system_prompt(system_prompt_file)
-        genai.configure(api_key=config.GEMINI_API_KEY)
-        self.client = genai.GenerativeModel(
-            model_name=config.DEFAULT_MODEL,
-            system_instruction=self.system_prompt or None,
-        )
+        self.client = Groq(api_key=config.GROQ_API_KEY)
         self.model = config.DEFAULT_MODEL
         self.max_tokens = config.MAX_TOKENS
 
@@ -50,28 +47,33 @@ class BaseAgent:
         tools: Optional[list] = None,
         temperature: float = 0.7,
     ) -> str:
-        """Gemini API 호출 래퍼."""
-        # Anthropic 메시지 형식을 Gemini contents 형식으로 변환
-        contents = []
-        for msg in messages:
-            role = "user" if msg["role"] == "user" else "model"
-            contents.append({"role": role, "parts": [msg["content"]]})
+        """Groq API 호출 래퍼."""
+        # 시스템 프롬프트를 messages 앞에 추가
+        full_messages = []
+        if self.system_prompt:
+            full_messages.append({"role": "system", "content": self.system_prompt})
+        full_messages.extend(messages)
 
-        generation_config = genai.types.GenerationConfig(
-            max_output_tokens=self.max_tokens,
-            temperature=temperature,
-        )
+        max_retries = 4
+        for attempt in range(max_retries):
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=full_messages,
+                    max_tokens=self.max_tokens,
+                    temperature=temperature,
+                )
+                break
+            except Exception as e:
+                if "429" in str(e) and attempt < max_retries - 1:
+                    wait = 2 ** (attempt + 1)
+                    self.log(f"Rate limit 초과, {wait}초 후 재시도 ({attempt + 1}/{max_retries})")
+                    time.sleep(wait)
+                else:
+                    self.log(f"API 호출 실패: {e}")
+                    raise
 
-        try:
-            response = self.client.generate_content(
-                contents=contents,
-                generation_config=generation_config,
-            )
-        except Exception as e:
-            self.log(f"API 호출 실패: {e}")
-            raise
-
-        result = response.text or ""
+        result = response.choices[0].message.content or ""
         if not result.strip():
             self.log("경고: API가 빈 텍스트를 반환했습니다")
 
@@ -82,7 +84,7 @@ class BaseAgent:
         messages: list,
         temperature: float = 0.5,
     ) -> dict:
-        """Gemini API를 호출하고 JSON 응답을 파싱한다."""
+        """Groq API를 호출하고 JSON 응답을 파싱한다."""
         raw = self.call_llm(messages, temperature=temperature)
         return self._extract_json(raw)
 
