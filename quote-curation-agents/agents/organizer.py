@@ -80,7 +80,7 @@ class Organizer(BaseAgent):
 
 수정 규칙:
 - 번역은 '-다' 체, 성숙한 어투
-- 해설은 200~400자, 3~5문장, 원문 범위 내
+- 해설은 200~400자, 4~6문장, 원문 범위 내
 - 비퍼블릭 도메인 도서: 원문 2문장, 번역은 재구성 의역
 
 {"".join(items)}
@@ -143,9 +143,9 @@ class Organizer(BaseAgent):
         parts.append(f"""
 ■ 정리 규칙:
 1. 주제 관련성 높은 것 우선
-2. 원문: 3~7문장 필수 (비퍼블릭 도메인 도서만 최대 2문장). 2문장이면 반드시 앞뒤 맥락 포함하여 3문장 이상으로 확장 (필수)
+2. 원문: 5~6문장 필수 (비퍼블릭 도메인 도서만 최대 2문장). 4문장 이하이면 반드시 앞뒤 맥락 포함하여 5문장 이상으로 확장. 1명언 1주제 유지 어려우면 최소 3문장까지 축소 가능
 3. 번역(wisdom_kr): '-다' 체, 비퍼블릭 도메인은 재구성 의역 필수
-4. 해설(wisdom_commentary): 200~400자, 3~5문장, '-다' 체. 한국의 예를 들 때 특정 인물 실명 사용 금지 (예: "한 대기업 CEO가..." 등으로 표현). 단, 퍼블릭 도메인 인물(1954년 이전 사망)과 원문을 말한 사람(leader_name) 본인의 이름은 사용 가능
+4. 해설(wisdom_commentary): 200~400자, 4~6문장, '-다' 체. 한국의 예를 들 때 특정 인물 실명 사용 금지 (예: "한 대기업 CEO가..." 등으로 표현). 단, 퍼블릭 도메인 인물(1954년 이전 사망)과 원문을 말한 사람(leader_name) 본인의 이름은 사용 가능
 5. 카테고리: business|marketing|leadership|self-improvement|philosophy|wealth|creativity|psychology|relationships
 6. Mood: execution|growth|challenge|relationships|motivation|new-goal|comfort|contemplation|anxiety|habits|meaning
 
