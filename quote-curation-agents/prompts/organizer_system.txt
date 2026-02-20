@@ -63,7 +63,7 @@
 - 추상적이고 뻔한 조언
 - 과도한 설교
 - 원문과 다른 상황의 예시
-- 특정 인물 이름 언급 (한국의 예를 들 때 "한 대기업 CEO가...", "한 스타트업 창업자가..." 등으로 표현하고, 실명을 사용하지 않는다)
+- 특정 인물 이름 언급 (한국의 예를 들 때 "한 대기업 CEO가...", "한 스타트업 창업자가..." 등으로 표현하고, 실명을 사용하지 않는다. 단, 퍼블릭 도메인 인물(저자 1954년 이전 사망)의 이름은 사용 가능)
 
 [카테고리 목록]
 business, marketing, leadership, self-improvement, philosophy, wealth, creativity, psychology, relationships

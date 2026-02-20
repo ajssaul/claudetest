@@ -145,7 +145,7 @@ class Organizer(BaseAgent):
 1. 주제 관련성 높은 것 우선
 2. 원문: 3~7문장 (비퍼블릭 도메인 도서만 최대 2문장). 2문장만 있으면 앞뒤 맥락 포함하여 3문장 이상으로 확장 (1명언 1주제 유지 시)
 3. 번역(wisdom_kr): '-다' 체, 비퍼블릭 도메인은 재구성 의역 필수
-4. 해설(wisdom_commentary): 150~250자, 2~4문장, '-다' 체. 한국의 예를 들 때 특정 인물 실명 사용 금지 (예: "한 대기업 CEO가..." 등으로 표현)
+4. 해설(wisdom_commentary): 150~250자, 2~4문장, '-다' 체. 한국의 예를 들 때 특정 인물 실명 사용 금지 (예: "한 대기업 CEO가..." 등으로 표현). 단, 퍼블릭 도메인 인물(1954년 이전 사망)의 이름은 사용 가능
 5. 카테고리: business|marketing|leadership|self-improvement|philosophy|wealth|creativity|psychology|relationships
 6. Mood: execution|growth|challenge|relationships|motivation|new-goal|comfort|contemplation|anxiety|habits|meaning
 
