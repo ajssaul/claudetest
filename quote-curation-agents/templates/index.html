@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>명언 큐레이션</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #0f0f0f;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        header h1 {
+            font-size: 28px;
+            font-weight: 600;
+            color: #ffffff;
+            margin-bottom: 8px;
+        }
+
+        header p {
+            font-size: 14px;
+            color: #888;
+        }
+
+        /* 입력 영역 */
+        .input-section {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .input-section label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: #aaa;
+            margin-bottom: 10px;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .input-row input {
+            flex: 1;
+            background: #0f0f0f;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 14px 16px;
+            font-size: 16px;
+            color: #fff;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .input-row input:focus {
+            border-color: #4a9eff;
+        }
+
+        .input-row input::placeholder {
+            color: #555;
+        }
+
+        .btn-run {
+            background: #4a9eff;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 14px 28px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+
+        .btn-run:hover { background: #3a8eef; }
+        .btn-run:disabled {
+            background: #333;
+            color: #666;
+            cursor: not-allowed;
+        }
+
+        /* 예시 버튼 */
+        .examples {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 14px;
+        }
+
+        .example-btn {
+            background: #222;
+            border: 1px solid #333;
+            border-radius: 20px;
+            padding: 6px 14px;
+            font-size: 13px;
+            color: #aaa;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .example-btn:hover {
+            background: #2a2a2a;
+            color: #fff;
+            border-color: #4a9eff;
+        }
+
+        /* 진행 상황 */
+        .progress-section {
+            display: none;
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .progress-section.active { display: block; }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .progress-header h2 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .status-badge {
+            font-size: 12px;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+
+        .status-running {
+            background: #1a3a1a;
+            color: #4ade80;
+        }
+
+        .status-completed {
+            background: #1a2a3a;
+            color: #4a9eff;
+        }
+
+        .status-error {
+            background: #3a1a1a;
+            color: #ef4444;
+        }
+
+        .log-area {
+            background: #0f0f0f;
+            border: 1px solid #222;
+            border-radius: 8px;
+            padding: 16px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: "SF Mono", "Menlo", monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            color: #888;
+        }
+
+        .log-area .log-line {
+            padding: 2px 0;
+        }
+
+        .log-area .log-line:last-child {
+            color: #4ade80;
+        }
+
+        /* 결과 영역 */
+        .result-section {
+            display: none;
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .result-section.active { display: block; }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .result-header h2 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .result-meta {
+            font-size: 13px;
+            color: #888;
+        }
+
+        .result-table-wrap {
+            overflow-x: auto;
+            border: 1px solid #222;
+            border-radius: 8px;
+        }
+
+        .result-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .result-table th {
+            background: #222;
+            color: #aaa;
+            padding: 10px 12px;
+            text-align: left;
+            font-weight: 500;
+            white-space: nowrap;
+            position: sticky;
+            top: 0;
+        }
+
+        .result-table td {
+            padding: 12px;
+            border-top: 1px solid #222;
+            vertical-align: top;
+            color: #ccc;
+        }
+
+        .result-table tr:hover td {
+            background: #1f1f1f;
+        }
+
+        .td-name {
+            font-weight: 600;
+            color: #fff;
+            white-space: nowrap;
+        }
+
+        .td-quote {
+            max-width: 300px;
+            line-height: 1.5;
+        }
+
+        .td-commentary {
+            max-width: 350px;
+            line-height: 1.5;
+            color: #aaa;
+        }
+
+        .td-source {
+            font-size: 12px;
+            color: #777;
+            max-width: 150px;
+        }
+
+        /* 히스토리 */
+        .history-section {
+            margin-top: 40px;
+            border-top: 1px solid #222;
+            padding-top: 24px;
+        }
+
+        .history-section h3 {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 12px;
+        }
+
+        .history-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 14px;
+            background: #1a1a1a;
+            border: 1px solid #222;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .history-item:hover { border-color: #4a9eff; }
+
+        .history-request {
+            font-size: 14px;
+            color: #ccc;
+        }
+
+        .history-time {
+            font-size: 12px;
+            color: #555;
+        }
+
+        /* 스크롤바 */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #444; }
+
+        /* 로딩 애니메이션 */
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid #333;
+            border-top-color: #4ade80;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>명언 큐레이션</h1>
+            <p>세계적 대가들의 명언을 AI가 수집, 정리, 검수합니다</p>
+        </header>
+
+        <!-- 입력 -->
+        <div class="input-section">
+            <label>명언 요청</label>
+            <div class="input-row">
+                <input type="text" id="requestInput"
+                       placeholder="예: 일론 머스크와 스티브 잡스의 리더십 명언 10개"
+                       autocomplete="off">
+                <button class="btn-run" id="runBtn" onclick="runPipeline()">실행</button>
+            </div>
+            <div class="examples">
+                <button class="example-btn" onclick="fillExample(this)">일론 머스크의 리더십 명언 5개</button>
+                <button class="example-btn" onclick="fillExample(this)">워런 버핏의 투자 철학 명언 10개</button>
+                <button class="example-btn" onclick="fillExample(this)">스티브 잡스의 혁신 명언 5개</button>
+                <button class="example-btn" onclick="fillExample(this)">피터 드러커의 경영 명언 10개</button>
+            </div>
+        </div>
+
+        <!-- 진행 상황 -->
+        <div class="progress-section" id="progressSection">
+            <div class="progress-header">
+                <h2><span class="spinner" id="progressSpinner"></span>진행 상황</h2>
+                <span class="status-badge status-running" id="statusBadge">실행 중</span>
+            </div>
+            <div class="log-area" id="logArea"></div>
+        </div>
+
+        <!-- 결과 -->
+        <div class="result-section" id="resultSection">
+            <div class="result-header">
+                <h2>결과</h2>
+                <span class="result-meta" id="resultMeta"></span>
+            </div>
+            <div class="result-table-wrap">
+                <table class="result-table" id="resultTable">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>인물</th>
+                            <th>명언 (한국어)</th>
+                            <th>해설</th>
+                            <th>출처</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 히스토리 -->
+        <div class="history-section" id="historySection" style="display:none;">
+            <h3>이전 실행 기록</h3>
+            <div id="historyList"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentJobId = null;
+        let pollInterval = null;
+
+        // Enter 키로 실행
+        document.getElementById("requestInput").addEventListener("keydown", function(e) {
+            if (e.key === "Enter") runPipeline();
+        });
+
+        // 예시 채우기
+        function fillExample(btn) {
+            document.getElementById("requestInput").value = btn.textContent;
+            document.getElementById("requestInput").focus();
+        }
+
+        // 파이프라인 실행
+        async function runPipeline() {
+            const input = document.getElementById("requestInput");
+            const userRequest = input.value.trim();
+            if (!userRequest) return;
+
+            const runBtn = document.getElementById("runBtn");
+            runBtn.disabled = true;
+
+            // UI 초기화
+            const progressSection = document.getElementById("progressSection");
+            const resultSection = document.getElementById("resultSection");
+            const logArea = document.getElementById("logArea");
+            const statusBadge = document.getElementById("statusBadge");
+            const spinner = document.getElementById("progressSpinner");
+
+            progressSection.classList.add("active");
+            resultSection.classList.remove("active");
+            logArea.innerHTML = "";
+            statusBadge.textContent = "실행 중";
+            statusBadge.className = "status-badge status-running";
+            spinner.style.display = "inline-block";
+
+            try {
+                const res = await fetch("/api/run", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ request: userRequest }),
+                });
+
+                const data = await res.json();
+
+                if (data.error) {
+                    logArea.innerHTML = `<div class="log-line">${data.error}</div>`;
+                    statusBadge.textContent = "오류";
+                    statusBadge.className = "status-badge status-error";
+                    spinner.style.display = "none";
+                    runBtn.disabled = false;
+                    return;
+                }
+
+                currentJobId = data.job_id;
+                startPolling();
+
+            } catch (err) {
+                logArea.innerHTML = `<div class="log-line">서버 연결 실패: ${err.message}</div>`;
+                statusBadge.textContent = "오류";
+                statusBadge.className = "status-badge status-error";
+                spinner.style.display = "none";
+                runBtn.disabled = false;
+            }
+        }
+
+        // 상태 폴링
+        function startPolling() {
+            if (pollInterval) clearInterval(pollInterval);
+            pollInterval = setInterval(pollStatus, 1500);
+        }
+
+        async function pollStatus() {
+            if (!currentJobId) return;
+
+            try {
+                const res = await fetch(`/api/status/${currentJobId}`);
+                const data = await res.json();
+
+                // 로그 업데이트
+                const logArea = document.getElementById("logArea");
+                logArea.innerHTML = data.logs
+                    .map(log => `<div class="log-line">${escapeHtml(log)}</div>`)
+                    .join("");
+                logArea.scrollTop = logArea.scrollHeight;
+
+                // 상태 업데이트
+                const statusBadge = document.getElementById("statusBadge");
+                const spinner = document.getElementById("progressSpinner");
+
+                if (data.status === "completed") {
+                    clearInterval(pollInterval);
+                    statusBadge.textContent = "완료";
+                    statusBadge.className = "status-badge status-completed";
+                    spinner.style.display = "none";
+                    document.getElementById("runBtn").disabled = false;
+
+                    if (data.result) {
+                        showResult(data.result, data.elapsed, data.save_path);
+                    }
+                    loadHistory();
+
+                } else if (data.status === "error") {
+                    clearInterval(pollInterval);
+                    statusBadge.textContent = "오류";
+                    statusBadge.className = "status-badge status-error";
+                    spinner.style.display = "none";
+                    document.getElementById("runBtn").disabled = false;
+                }
+
+            } catch (err) {
+                // 네트워크 오류 시 계속 재시도
+            }
+        }
+
+        // 결과 표시 (TSV 파싱)
+        function showResult(tsvData, elapsed, savePath) {
+            const resultSection = document.getElementById("resultSection");
+            const resultBody = document.getElementById("resultBody");
+            const resultMeta = document.getElementById("resultMeta");
+
+            const lines = tsvData.trim().split("\n");
+            if (lines.length < 2) return;
+
+            const headers = lines[0].split("\t");
+            const nameIdx = headers.indexOf("leader_name");
+            const krIdx = headers.indexOf("wisdom_kr");
+            const commentaryIdx = headers.indexOf("wisdom_commentary");
+            const sourceIdx = headers.indexOf("source");
+
+            resultBody.innerHTML = "";
+
+            for (let i = 1; i < lines.length; i++) {
+                const cols = lines[i].split("\t");
+                if (cols.length < 2) continue;
+
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td>${i}</td>
+                    <td class="td-name">${escapeHtml(cols[nameIdx] || "")}</td>
+                    <td class="td-quote">${escapeHtml(cols[krIdx] || "")}</td>
+                    <td class="td-commentary">${escapeHtml(cols[commentaryIdx] || "")}</td>
+                    <td class="td-source">${escapeHtml(cols[sourceIdx] || "")}</td>
+                `;
+                resultBody.appendChild(tr);
+            }
+
+            let metaText = `${lines.length - 1}개 명언`;
+            if (elapsed) metaText += ` | ${elapsed}`;
+            if (savePath) metaText += ` | ${savePath}`;
+            resultMeta.textContent = metaText;
+
+            resultSection.classList.add("active");
+        }
+
+        // 히스토리 로드
+        async function loadHistory() {
+            try {
+                const res = await fetch("/api/history");
+                const data = await res.json();
+
+                if (data.length === 0) return;
+
+                const section = document.getElementById("historySection");
+                const list = document.getElementById("historyList");
+                section.style.display = "block";
+                list.innerHTML = "";
+
+                data.forEach(item => {
+                    const div = document.createElement("div");
+                    div.className = "history-item";
+                    div.innerHTML = `
+                        <span class="history-request">${escapeHtml(item.request)}</span>
+                        <span class="history-time">${item.status === "completed" ? "완료" : item.status}</span>
+                    `;
+                    div.onclick = () => {
+                        document.getElementById("requestInput").value = item.request;
+                        if (item.status === "completed" || item.status === "error") {
+                            currentJobId = item.job_id;
+                            pollStatus();
+                        }
+                    };
+                    list.appendChild(div);
+                });
+
+            } catch (err) {}
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement("div");
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // 페이지 로드 시 히스토리 표시
+        loadHistory();
+    </script>
+</body>
+</html>
