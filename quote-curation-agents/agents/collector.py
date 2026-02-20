@@ -1,0 +1,175 @@
+"""
+수집자 (Collector) 에이전트.
+다양한 소스에서 명언 원문과 메타데이터를 수집한다.
+"""
+
+import json
+import logging
+import traceback
+from typing import Optional
+
+from .base_agent import BaseAgent
+from models.task import Task
+
+logger = logging.getLogger("quote-agents.collector")
+
+
+class Collector(BaseAgent):
+    """명언 수집 에이전트."""
+
+    def __init__(self):
+        super().__init__(
+            name="수집자",
+            role="다양한 소스에서 명언 원문과 메타데이터를 수집",
+            system_prompt_file="collector_system.txt",
+        )
+        self._excluded_wisdoms: list[dict] = []
+
+    async def run(
+        self,
+        task: Task,
+        exclude: Optional[list] = None,
+        target: Optional[int] = None,
+        supplement_request: Optional[str] = None,
+    ) -> list[dict]:
+        if exclude:
+            self._excluded_wisdoms = exclude
+        if target is None:
+            target = int(task.count * 2)
+
+        self.log(f"수집 시작: 주제='{task.topic}', 인물={task.leaders or '자동'}, 목표={target}개")
+
+        # LLM 지식 기반 수집 (가장 안정적)
+        collected = self._collect_from_knowledge(task, target, supplement_request)
+
+        if not collected:
+            self.log("수집 실패: 0개")
+        else:
+            self.log(f"수집 완료: {len(collected)}개")
+
+        return collected
+
+    def _collect_from_knowledge(
+        self, task: Task, target: int, supplement_request: Optional[str]
+    ) -> list[dict]:
+        """LLM 지식 기반으로 명언을 수집한다."""
+        prompt = self._build_prompt(task, target, supplement_request)
+        messages = [{"role": "user", "content": prompt}]
+
+        try:
+            self.log("Claude API 호출 중...")
+            raw = self.call_llm(messages, temperature=0.7)
+            self.log(f"API 응답 수신: {len(raw)}자")
+
+            if not raw.strip():
+                self.log("경고: 빈 응답")
+                return []
+
+            return self._parse_collected(raw, target)
+
+        except Exception as e:
+            self.log(f"오류: {e}")
+            traceback.print_exc()
+            return []
+
+    def _parse_collected(self, raw_response: str, target: int) -> list[dict]:
+        """LLM 응답에서 수집 데이터를 추출한다."""
+        try:
+            result = self._extract_json(raw_response)
+        except ValueError as e:
+            self.log(f"JSON 추출 실패: {e}")
+            self.log(f"응답 앞부분: {raw_response[:500]}")
+            return []
+
+        # dict → 내부 리스트 추출
+        if isinstance(result, dict):
+            for key in ("wisdoms", "results", "quotes", "data"):
+                if key in result and isinstance(result[key], list):
+                    result = result[key]
+                    break
+            else:
+                result = [result]
+
+        if not isinstance(result, list):
+            self.log(f"예상치 못한 결과 타입: {type(result)}")
+            return []
+
+        # 검증 및 기본값 채우기
+        validated = []
+        for item in result:
+            if not isinstance(item, dict):
+                continue
+            if not item.get("wisdom_original"):
+                continue
+            if not item.get("leader_name") and not item.get("leader_name_en"):
+                continue
+            item.setdefault("leader_name", item.get("leader_name_en", ""))
+            item.setdefault("leader_name_en", item.get("leader_name", ""))
+            item.setdefault("leader_title", "")
+            item.setdefault("source", "")
+            item.setdefault("source_type", "기타")
+            item.setdefault("source_url", "")
+            item.setdefault("source_making_date", "")
+            item.setdefault("is_public_domain", False)
+            validated.append(item)
+
+        self.log(f"파싱 결과: {len(validated)}개 유효")
+        return validated[:target]
+
+    def _build_prompt(
+        self, task: Task, target: int, supplement_request: Optional[str]
+    ) -> str:
+        parts = []
+        parts.append(f"너는 명언 수집 전문가야. 아래 조건에 맞는 명언을 정확히 {target}개 수집해줘.")
+        parts.append(f"반드시 {target}개를 모두 JSON 배열로 응답해야 한다.\n")
+        parts.append(f"■ 주제: {task.topic}")
+
+        if task.leaders:
+            parts.append(f"■ 인물: {', '.join(task.leaders)}")
+        else:
+            parts.append("■ 인물: 해당 주제의 세계적 대가들 (자동 탐색)")
+
+        if task.categories:
+            parts.append(f"■ 카테고리: {', '.join(task.categories)}")
+        if task.constraints:
+            parts.append(f"■ 기타 조건: {task.constraints}")
+
+        if supplement_request:
+            parts.append(f"\n⚠️ 보완 수집: {supplement_request}")
+
+        if self._excluded_wisdoms:
+            parts.append("\n⚠️ 중복 방지 (아래와 다른 명언을 수집):")
+            for w in self._excluded_wisdoms[:10]:
+                if isinstance(w, dict):
+                    name = w.get("leader_name_en", w.get("leader_name", ""))
+                    orig = w.get("wisdom_original", "")[:40]
+                    parts.append(f"  - {name}: {orig}...")
+
+        parts.append(f"""
+■ 수집 규칙:
+- 출처가 명확한 명언만 수집
+- 원문은 영어로 2~7문장 (비퍼블릭 도메인 도서는 최대 2문장)
+- 주제 '{task.topic}'과 관련성이 높은 것만
+
+다른 설명 없이 아래 형식의 JSON 배열만 출력해라:
+
+[
+  {{
+    "leader_name": "한글 이름",
+    "leader_name_en": "English Name",
+    "leader_title": "직함 또는 직업",
+    "wisdom_original": "영어 원문 (2~7문장)",
+    "source": "출처명 (책제목, 연설명 등)",
+    "source_type": "도서",
+    "source_url": "https://example.com",
+    "source_making_date": "",
+    "is_public_domain": false
+  }},
+  ...총 {target}개...
+]""")
+
+        return "\n".join(parts)
+
+    def receive_feedback(self, feedback: dict):
+        self._excluded_wisdoms.extend(feedback.get("existing_wisdoms", []))
+        self.log(f"피드백 수신: {feedback.get('reason', 'N/A')}")
