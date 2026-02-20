@@ -2,7 +2,7 @@ import os
 
 # Anthropic API 설정
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-DEFAULT_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-20250514")
+DEFAULT_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-5-20250929")
 MAX_TOKENS = 16384
 
 # 피드백 루프 제한
