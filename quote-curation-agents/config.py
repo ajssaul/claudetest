@@ -24,6 +24,9 @@ MAX_TOTAL_FEEDBACK = 10
 COLLECTION_MULTIPLIER = 2.0  # 요청 개수 대비 수집 배수
 MIN_COLLECTION_MULTIPLIER = 1.5
 
+# 배치 처리 설정
+BATCH_SIZE = 10  # 1회 파이프라인 최적 처리 개수. 초과 시 자동 분할
+
 # 출력 디렉토리
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "output")
 

@@ -22,6 +22,7 @@ from models.task import Task
 from models.wisdom import Wisdom, SourceType
 
 import config
+import math
 
 logger = logging.getLogger("quote-agents.orchestrator")
 
@@ -526,3 +527,159 @@ class Orchestrator(BaseAgent):
             data.get("source_making_date", ""),
         ]
         return "\t".join(str(f) for f in fields)
+
+
+async def run_pipeline_batched(
+    user_request: str,
+    previous_wisdoms: list[dict] | None = None,
+) -> dict:
+    """
+    대량 요청을 BATCH_SIZE 단위로 분할하여 파이프라인을 반복 실행한다.
+
+    예: 100개 요청 → 10개씩 10번 실행 → 1개 TSV로 합산
+
+    각 배치마다:
+    - 새로운 Orchestrator 인스턴스를 생성 (피드백 카운터 초기화)
+    - 이전 배치 결과를 previous_wisdoms에 누적하여 중복 방지
+
+    Args:
+        user_request: 사용자 요청 문자열
+        previous_wisdoms: 이전 실행에서 최종 출력된 명언 리스트 (중복 방지용)
+
+    Returns:
+        {"tsv": TSV 형식 문자열, "report": 배치 실행 요약 또는 None, "total_count": 최종 명언 수}
+    """
+    batch_size = config.BATCH_SIZE
+
+    # 먼저 요청을 파싱하여 총 개수 파악
+    parser = Orchestrator()
+    task = await parser.parse_user_request(user_request)
+    total_requested = task.count
+
+    # BATCH_SIZE 이하이면 일반 파이프라인 실행
+    if total_requested <= batch_size:
+        orch = Orchestrator()
+        result = await orch.run_pipeline(user_request, previous_wisdoms=previous_wisdoms)
+        result["total_count"] = result["tsv"].count("\n")  # 헤더 제외 행 수
+        return result
+
+    # 배치 분할 실행
+    num_batches = math.ceil(total_requested / batch_size)
+    logger.info(f"배치 처리: {total_requested}개 요청 → {batch_size}개씩 {num_batches}번 실행")
+    print(f"\n{'='*60}")
+    print(f"  배치 처리 모드: {total_requested}개 → {batch_size}개 × {num_batches}배치")
+    print(f"{'='*60}\n")
+
+    all_wisdoms: list[dict] = []
+    accumulated_previous = list(previous_wisdoms or [])
+    batch_reports: list[str] = []
+
+    for batch_idx in range(num_batches):
+        remaining = total_requested - len(all_wisdoms)
+        batch_count = min(batch_size, remaining)
+
+        if batch_count <= 0:
+            break
+
+        print(f"\n{'─'*50}")
+        print(f"  배치 {batch_idx + 1}/{num_batches} 시작 (목표: {batch_count}개, 누적: {len(all_wisdoms)}개)")
+        print(f"{'─'*50}\n")
+
+        # 배치용 요청 문자열 구성 (개수만 batch_count로 변경)
+        batch_request = _build_batch_request(task, batch_count)
+
+        # 새 오케스트레이터로 파이프라인 실행
+        orch = Orchestrator()
+        batch_result = await orch.run_pipeline(
+            batch_request,
+            previous_wisdoms=accumulated_previous,
+        )
+
+        # 결과에서 명언 추출 (TSV 파싱)
+        batch_wisdoms = _extract_wisdoms_from_tsv(batch_result["tsv"])
+        all_wisdoms.extend(batch_wisdoms)
+
+        # 다음 배치를 위해 누적
+        accumulated_previous.extend(batch_wisdoms)
+
+        # 배치 리포트 수집
+        if batch_result.get("report"):
+            batch_reports.append(f"[배치 {batch_idx + 1}] {batch_result['report']}")
+
+        print(f"\n  배치 {batch_idx + 1} 완료: {len(batch_wisdoms)}개 확보 (누적: {len(all_wisdoms)}/{total_requested}개)")
+
+        if len(all_wisdoms) >= total_requested:
+            break
+
+    # 최종 TSV 생성 (전체 결과를 하나로)
+    final_wisdoms = all_wisdoms[:total_requested]
+    final_tsv = _format_combined_tsv(final_wisdoms)
+
+    # 요약 리포트
+    report = None
+    if len(final_wisdoms) < total_requested or batch_reports:
+        report_lines = [
+            f"\n배치 처리 완료: {len(final_wisdoms)}/{total_requested}개 확보 ({num_batches}배치 실행)",
+        ]
+        if len(final_wisdoms) < total_requested:
+            report_lines.append(f"부족분: {total_requested - len(final_wisdoms)}개")
+        if batch_reports:
+            report_lines.append("\n--- 배치별 상세 ---")
+            report_lines.extend(batch_reports)
+        report = "\n".join(report_lines)
+
+    return {"tsv": final_tsv, "report": report, "total_count": len(final_wisdoms)}
+
+
+def _build_batch_request(task: Task, batch_count: int) -> str:
+    """Task 정보로부터 배치용 요청 문자열을 구성한다."""
+    parts = []
+    if task.leaders:
+        leaders_str = "와 ".join(task.leaders)
+        parts.append(f"{leaders_str}의")
+    parts.append(f"{task.topic} 명언 {batch_count}개")
+    if task.constraints:
+        parts.append(f"({task.constraints})")
+    return " ".join(parts)
+
+
+def _extract_wisdoms_from_tsv(tsv_text: str) -> list[dict]:
+    """TSV 텍스트에서 명언 딕셔너리 리스트를 추출한다."""
+    import csv
+    import io
+
+    lines = tsv_text.strip().split("\n")
+    if len(lines) < 2:
+        return []
+
+    reader = csv.DictReader(io.StringIO(tsv_text), delimiter="\t")
+    wisdoms = []
+    for row in reader:
+        if row.get("wisdom_original"):
+            wisdoms.append(dict(row))
+    return wisdoms
+
+
+def _format_combined_tsv(wisdoms: list[dict]) -> str:
+    """명언 리스트를 하나의 TSV로 포맷한다."""
+    if not wisdoms:
+        return Wisdom.tsv_header()
+
+    output_parts = [Wisdom.tsv_header()]
+    for w in wisdoms:
+        fields = [
+            w.get("leader_name", ""),
+            w.get("leader_name_en", ""),
+            w.get("leader_title", ""),
+            w.get("wisdom_original", ""),
+            w.get("wisdom_kr", ""),
+            w.get("wisdom_commentary", ""),
+            w.get("source", ""),
+            w.get("source_type", "기타"),
+            w.get("source_url", ""),
+            w.get("category", ""),
+            w.get("mood", ""),
+            w.get("source_making_date", ""),
+        ]
+        output_parts.append("\t".join(str(f) for f in fields))
+    return "\n".join(output_parts)
