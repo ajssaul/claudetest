@@ -14,6 +14,24 @@ import config
 
 logger = logging.getLogger("quote-agents")
 
+# 공유 클라이언트 싱글턴 (커넥션 풀링)
+_shared_sync_client: Optional[anthropic.Anthropic] = None
+_shared_async_client: Optional[anthropic.AsyncAnthropic] = None
+
+
+def _get_sync_client() -> anthropic.Anthropic:
+    global _shared_sync_client
+    if _shared_sync_client is None:
+        _shared_sync_client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
+    return _shared_sync_client
+
+
+def _get_async_client() -> anthropic.AsyncAnthropic:
+    global _shared_async_client
+    if _shared_async_client is None:
+        _shared_async_client = anthropic.AsyncAnthropic(api_key=config.ANTHROPIC_API_KEY)
+    return _shared_async_client
+
 
 class BaseAgent:
     """모든 에이전트의 공통 베이스 클래스."""
@@ -22,10 +40,16 @@ class BaseAgent:
         self.name = name
         self.role = role
         self.system_prompt = self._load_system_prompt(system_prompt_file)
-        self.client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
-        self.async_client = anthropic.AsyncAnthropic(api_key=config.ANTHROPIC_API_KEY)
         self.model = config.DEFAULT_MODEL
         self.max_tokens = config.MAX_TOKENS
+
+    @property
+    def client(self) -> anthropic.Anthropic:
+        return _get_sync_client()
+
+    @property
+    def async_client(self) -> anthropic.AsyncAnthropic:
+        return _get_async_client()
 
     def _load_system_prompt(self, filename: Optional[str]) -> str:
         """prompts/ 폴더에서 시스템 프롬프트를 로드한다."""
