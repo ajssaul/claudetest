@@ -399,8 +399,8 @@ class Orchestrator(BaseAgent):
 
             # 4→3 피드백: 정리자에게 수정 요청
             if not self.can_feedback("4→3"):
-                self.log("4→3 피드백 한도 초과. REVISE 항목은 REJECT 처리.")
-                self.report.stage_tracking["review_rejected"] += len(revise_wisdoms)
+                self.log("4→3 피드백 한도 초과. REVISE 항목은 강제 통과 처리.")
+                passed.extend(revise_wisdoms)
                 break
 
             self.record_feedback(
@@ -427,6 +427,10 @@ class Orchestrator(BaseAgent):
             passed = self.reviewer.get_passed(
                 current_wisdoms, final_review.get("reviews", [])
             )
+            # 재검수에서도 PASS가 없으면 현재 데이터로 강제 진행
+            if not passed and current_wisdoms:
+                self.log("재검수 PASS 없음. 피드백 한도 소진으로 현재 데이터를 강제 통과 처리.")
+                passed = current_wisdoms
 
         # 4→2: 수량 부족 확인
         total_available = len(existing_passed) + len(passed)
