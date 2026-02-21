@@ -11,6 +11,7 @@ from typing import Optional
 
 from .base_agent import BaseAgent
 from models.task import Task
+from utils.url_validator import is_youtube_url, batch_verify_youtube_sources
 
 logger = logging.getLogger("quote-agents.collector")
 
@@ -66,8 +67,26 @@ class Collector(BaseAgent):
 
         if not collected:
             self.log("수집 실패: 0개")
-        else:
-            self.log(f"수집 완료: {len(collected)}개")
+            return collected
+
+        self.log(f"수집 완료: {len(collected)}개")
+
+        # YouTube URL 검증: 접근 불가 URL은 비우고, 트랜스크립트 불일치는 경고
+        yt_count = sum(1 for c in collected if is_youtube_url(c.get("source_url", "")))
+        if yt_count > 0:
+            self.log(f"YouTube URL 검증 시작: {yt_count}개")
+            collected = await batch_verify_youtube_sources(collected)
+            invalidated = 0
+            for item in collected:
+                verification = item.pop("_yt_verification", None)
+                if verification and not verification.get("overall_valid", True):
+                    reason = verification.get("rejection_reason", "URL 검증 실패")
+                    self.log(f"  YouTube URL 무효: {item.get('source_url', '')} → {reason}")
+                    item["source_url"] = ""
+                    item["_youtube_url_invalid"] = True
+                    item["_youtube_rejection_reason"] = reason
+                    invalidated += 1
+            self.log(f"YouTube URL 검증 완료: {yt_count - invalidated}/{yt_count}개 유효")
 
         return collected
 
