@@ -12,6 +12,7 @@ from typing import Optional
 from .base_agent import BaseAgent
 from models.task import Task
 from utils.url_validator import is_youtube_url, batch_verify_youtube_sources
+from utils.youtube_search import batch_search_youtube_urls
 
 logger = logging.getLogger("quote-agents.collector")
 
@@ -70,6 +71,10 @@ class Collector(BaseAgent):
             return collected
 
         self.log(f"수집 완료: {len(collected)}개")
+
+        # YouTube URL 웹 검색: 출처가 YouTube인데 URL이 없는 항목에 실제 URL 채우기
+        self.log("YouTube 출처 확인 중...")
+        collected = await batch_search_youtube_urls(collected)
 
         # YouTube URL 검증: 접근 불가 URL은 비우고, 트랜스크립트 불일치는 경고
         yt_count = sum(1 for c in collected if is_youtube_url(c.get("source_url", "")))
