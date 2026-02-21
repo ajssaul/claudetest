@@ -30,6 +30,9 @@ BATCH_SIZE = 10  # 1회 파이프라인 최적 처리 개수. 초과 시 자동 
 # 출력 디렉토리
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "output")
 
+# YouTube Data API
+YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY", "")
+
 # 로깅
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
 
