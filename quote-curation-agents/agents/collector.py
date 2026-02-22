@@ -13,6 +13,7 @@ from .base_agent import BaseAgent
 from models.task import Task
 from utils.url_validator import is_youtube_url, batch_verify_youtube_sources, batch_verify_web_sources
 from utils.youtube_search import batch_search_youtube_urls
+from utils.source_verifier import batch_verify_sources
 
 logger = logging.getLogger("quote-agents.collector")
 
@@ -123,6 +124,35 @@ class Collector(BaseAgent):
                     else:
                         item["_web_url_status"] = "VALID"
             self.log(f"일반 웹 URL 검증 완료: {web_count - web_invalidated}/{web_count}개 유효")
+
+        # 출처(source) 검증: 웹 검색으로 출처명이 실제 존재하는지 확인
+        self.log(f"출처(source) 검증 시작: {len(collected)}개")
+        collected = await batch_verify_sources(collected)
+        for item in collected:
+            verification = item.get("_source_verification")
+            if verification:
+                status = verification.get("status", "UNVERIFIED")
+                if status == "SUSPICIOUS":
+                    reason = verification.get("reason", "")
+                    correction = verification.get("suggested_correction")
+                    self.log(
+                        f"  출처 의심: {item.get('leader_name_en', '')} - "
+                        f"{item.get('source', '')} → {reason}"
+                    )
+                    item["_source_status"] = "SUSPICIOUS"
+                    item["_source_issue"] = reason
+                    if correction:
+                        item["_source_suggested_correction"] = correction
+                elif status == "VERIFIED":
+                    item["_source_status"] = "VERIFIED"
+                    correction = verification.get("suggested_correction")
+                    if correction:
+                        self.log(
+                            f"  출처 수정 제안: {item.get('source', '')} → {correction}"
+                        )
+                        item["_source_suggested_correction"] = correction
+                else:
+                    item["_source_status"] = "UNVERIFIED"
 
         return collected
 

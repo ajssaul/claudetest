@@ -34,9 +34,14 @@ class Reviewer(BaseAgent):
         # 0단계: 웹 URL 프로그래밍 검증 (LLM 호출 전)
         web_pre_rejects, wisdoms = await self._pre_verify_web_urls(wisdoms)
 
-        if not wisdoms and web_pre_rejects:
-            self.log(f"검수 완료: 웹 URL 사전 검증으로 전체 REJECT ({len(web_pre_rejects)}개)")
-            return {"reviews": web_pre_rejects}
+        # 0.5단계: 출처명(source) 검증 결과 기반 사전 REJECT
+        source_pre_rejects, wisdoms = self._pre_check_source_status(wisdoms)
+
+        all_pre_rejects = web_pre_rejects + source_pre_rejects
+
+        if not wisdoms and all_pre_rejects:
+            self.log(f"검수 완료: 사전 검증으로 전체 REJECT ({len(all_pre_rejects)}개)")
+            return {"reviews": all_pre_rejects}
 
         # 1단계: LLM 기반 검수
         topic = task.topic if task else "일반"
@@ -60,7 +65,7 @@ class Reviewer(BaseAgent):
                     r["index"] = i
 
             # 사전 REJECT 결과와 LLM 결과 병합
-            merged_reviews = self._merge_reviews(web_pre_rejects, reviews, len(web_pre_rejects) + len(wisdoms))
+            merged_reviews = self._merge_reviews(all_pre_rejects, reviews, len(all_pre_rejects) + len(wisdoms))
 
             # 통계
             pass_c = sum(1 for r in merged_reviews if r.get("verdict") == "PASS")
@@ -73,7 +78,7 @@ class Reviewer(BaseAgent):
         except Exception as e:
             logger.error(f"검수 오류: {e}")
             # 오류 시: 사전 REJECT는 유지, 나머지는 PASS
-            fallback = web_pre_rejects + [
+            fallback = all_pre_rejects + [
                 {"index": i, "verdict": "PASS", "issues": [], "revision_instructions": ""}
                 for i in range(len(wisdoms))
             ]
@@ -173,6 +178,39 @@ class Reviewer(BaseAgent):
 
         return pre_rejects, remaining
 
+    def _pre_check_source_status(self, wisdoms: list[dict]) -> tuple[list[dict], list[dict]]:
+        """
+        수집자에서 설정한 _source_status를 기반으로 SUSPICIOUS 출처를 사전 REJECT한다.
+
+        Returns:
+            (pre_reject_reviews, remaining_wisdoms)
+        """
+        pre_rejects = []
+        remaining = []
+        rejected_indices = set()
+
+        for i, w in enumerate(wisdoms):
+            source_status = w.get("_source_status", "")
+            if source_status == "SUSPICIOUS":
+                issue = w.get("_source_issue", "출처 검증 실패")
+                pre_rejects.append({
+                    "original_index": i,
+                    "index": len(pre_rejects),
+                    "verdict": "REJECT",
+                    "issues": [f"출처 검증 실패: {issue}"],
+                    "revision_instructions": "",
+                })
+                rejected_indices.add(i)
+
+        for i, w in enumerate(wisdoms):
+            if i not in rejected_indices:
+                remaining.append(w)
+
+        if pre_rejects:
+            self.log(f"출처(source) 사전 REJECT: {len(pre_rejects)}개")
+
+        return pre_rejects, remaining
+
     @staticmethod
     def _merge_reviews(
         pre_rejects: list[dict],
@@ -232,9 +270,10 @@ class Reviewer(BaseAgent):
 2. 주제 '{topic}' 적합성
 3. 출처 명확성 (구체적 출처명 필수)
 4. 웹 URL 검증: _web_url_status 필드 확인. "INACCESSIBLE"→REJECT (URL 접근 불가), "CONTENT_MISMATCH"→REJECT (URL은 열리나 발언자 관련 내용 없음), "VALID"→통과
-5. 비퍼블릭 도메인 도서: 원문 2문장, 번역 재구성 의역, 해설 4~5문장
-6. 번역 품질, 어투('-다' 체), 해설 품질(150~250자)
-7. 카테고리/mood 유효성
+5. 출처명(source) 검증: _source_status 필드 확인. "SUSPICIOUS"→REJECT (출처가 실존하지 않거나 인물과 무관), "VERIFIED"→통과 (단, _source_suggested_correction이 있으면 REVISE "출처명을 수정된 값으로 변경"), "UNVERIFIED"→출처가 구체적이면 PASS 가능
+6. 비퍼블릭 도메인 도서: 원문 2문장, 번역 재구성 의역, 해설 4~5문장
+7. 번역 품질, 어투('-다' 체), 해설 품질(150~250자)
+8. 카테고리/mood 유효성
 
 ■ 카테고리: business, marketing, leadership, self-improvement, philosophy, wealth, creativity, psychology, relationships
 ■ Mood: execution, growth, challenge, relationships, motivation, new-goal, comfort, contemplation, anxiety, habits, meaning

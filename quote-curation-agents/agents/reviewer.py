@@ -40,10 +40,14 @@ class Reviewer(BaseAgent):
 
         # 1.5단계: 일반 웹 URL 프로그래밍 검증 (LLM 호출 전)
         web_pre_rejects, wisdoms = await self._pre_verify_web_urls(wisdoms)
-        all_pre_rejects = yt_pre_rejects + web_pre_rejects
+
+        # 1.7단계: 출처명(source) 검증 결과 기반 사전 REJECT
+        source_pre_rejects, wisdoms = self._pre_check_source_status(wisdoms)
+
+        all_pre_rejects = yt_pre_rejects + web_pre_rejects + source_pre_rejects
 
         if not wisdoms and all_pre_rejects:
-            self.log(f"검수 완료: URL 사전 검증으로 전체 REJECT ({len(all_pre_rejects)}개)")
+            self.log(f"검수 완료: 사전 검증으로 전체 REJECT ({len(all_pre_rejects)}개)")
             return {"reviews": all_pre_rejects}
 
         # 2단계: LLM 기반 검수
@@ -284,6 +288,40 @@ class Reviewer(BaseAgent):
 
         return pre_rejects, remaining
 
+    def _pre_check_source_status(self, wisdoms: list[dict]) -> tuple[list[dict], list[dict]]:
+        """
+        수집자에서 설정한 _source_status를 기반으로 SUSPICIOUS 출처를 사전 REJECT한다.
+
+        Returns:
+            (pre_reject_reviews, remaining_wisdoms)
+        """
+        pre_rejects = []
+        remaining = []
+        rejected_indices = set()
+
+        for i, w in enumerate(wisdoms):
+            source_status = w.get("_source_status", "")
+            if source_status == "SUSPICIOUS":
+                issue = w.get("_source_issue", "출처 검증 실패")
+                pre_rejects.append({
+                    "original_index": i,
+                    "index": len(pre_rejects),
+                    "verdict": "REJECT",
+                    "issues": [f"출처 검증 실패: {issue}"],
+                    "revision_instructions": "",
+                })
+                rejected_indices.add(i)
+
+        for i, w in enumerate(wisdoms):
+            if i not in rejected_indices:
+                # 내부 마커는 LLM 프롬프트에 포함되므로 유지
+                remaining.append(w)
+
+        if pre_rejects:
+            self.log(f"출처(source) 사전 REJECT: {len(pre_rejects)}개")
+
+        return pre_rejects, remaining
+
     @staticmethod
     def _merge_reviews(
         pre_rejects: list[dict],
@@ -345,12 +383,13 @@ class Reviewer(BaseAgent):
 3. 출처 명확성 (구체적 출처명 필수)
 4. YouTube URL 검증: _youtube_url_status 필드 확인. "INVALID"→REJECT, "TRANSCRIPT_MISMATCH"→REJECT, "VALID"→통과, "NO_TRANSCRIPT"→URL 유효하나 트랜스크립트 미확인이므로 다른 기준으로 검수. YouTube 출처인데 source_url이 비어있으면→REJECT
 5. 일반 웹 URL 검증: _web_url_status 필드 확인. "INACCESSIBLE"→REJECT (URL 접근 불가), "CONTENT_MISMATCH"→REJECT (URL은 열리나 발언자 관련 내용 없음), "VALID"→통과
-6. 비퍼블릭 도메인 도서: 원문 2문장, 번역 재구성 의역
-7. 원문 길이: 목표 5~6문장이지만 1주제 유지가 우선. 1주제 유지 위해 3~4문장으로 축소한 경우는 PASS
-8. 해설에 한국 특정 인물 실명이 있으면 REVISE → "실명 대신 일반 표현으로 변경" (단, 퍼블릭 도메인 인물과 원문 저자(leader_name) 본인은 예외)
-9. 번역 품질, 어투('-다' 체), 해설 품질(200~400자, 4~6문장)
-10. 도서 출처 한국어 제목: 한국어 번역본이 있는 도서인데 영어 원제만 표기된 경우 → REVISE "한국어 번역 제목으로 변경하고 영어 원제를 괄호로 병기"
-11. 카테고리/mood 유효성
+6. 출처명(source) 검증: _source_status 필드 확인. "SUSPICIOUS"→REJECT (출처가 실존하지 않거나 인물과 무관), "VERIFIED"→통과 (단, _source_suggested_correction이 있으면 REVISE "출처명을 수정된 값으로 변경"), "UNVERIFIED"→출처가 구체적이면 PASS 가능
+7. 비퍼블릭 도메인 도서: 원문 2문장, 번역 재구성 의역
+8. 원문 길이: 목표 5~6문장이지만 1주제 유지가 우선. 1주제 유지 위해 3~4문장으로 축소한 경우는 PASS
+9. 해설에 한국 특정 인물 실명이 있으면 REVISE → "실명 대신 일반 표현으로 변경" (단, 퍼블릭 도메인 인물과 원문 저자(leader_name) 본인은 예외)
+10. 번역 품질, 어투('-다' 체), 해설 품질(200~400자, 4~6문장)
+11. 도서 출처 한국어 제목: 한국어 번역본이 있는 도서인데 영어 원제만 표기된 경우 → REVISE "한국어 번역 제목으로 변경하고 영어 원제를 괄호로 병기"
+12. 카테고리/mood 유효성
 
 ■ 카테고리: business, marketing, leadership, self-improvement, philosophy, wealth, creativity, psychology, relationships
 ■ Mood: execution, growth, challenge, relationships, motivation, new-goal, comfort, contemplation, anxiety, habits, meaning
