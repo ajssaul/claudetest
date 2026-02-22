@@ -11,7 +11,7 @@ from typing import Optional
 
 from .base_agent import BaseAgent
 from models.task import Task
-from utils.url_validator import is_youtube_url, batch_verify_youtube_sources
+from utils.url_validator import is_youtube_url, batch_verify_youtube_sources, batch_verify_web_sources
 from utils.youtube_search import batch_search_youtube_urls
 
 logger = logging.getLogger("quote-agents.collector")
@@ -92,6 +92,37 @@ class Collector(BaseAgent):
                     item["_youtube_rejection_reason"] = reason
                     invalidated += 1
             self.log(f"YouTube URL 검증 완료: {yt_count - invalidated}/{yt_count}개 유효")
+
+        # 일반 웹 URL 검증: 접근 가능 여부 + 내용 관련성 확인
+        web_count = sum(
+            1 for c in collected
+            if c.get("source_url", "") and c["source_url"].startswith("http")
+            and not is_youtube_url(c["source_url"])
+        )
+        if web_count > 0:
+            self.log(f"일반 웹 URL 검증 시작: {web_count}개")
+            collected = await batch_verify_web_sources(collected)
+            web_invalidated = 0
+            for item in collected:
+                verification = item.pop("_web_url_verification", None)
+                if verification:
+                    status = verification.get("overall_status", "VALID")
+                    if status == "INACCESSIBLE":
+                        error = verification.get("error", "접근 불가")
+                        self.log(f"  웹 URL 접근 불가: {item.get('source_url', '')} → {error}")
+                        item["_web_url_status"] = "INACCESSIBLE"
+                        item["_web_url_error"] = error
+                        item["source_url"] = ""  # 접근 불가 URL 제거
+                        web_invalidated += 1
+                    elif status == "CONTENT_MISMATCH":
+                        error = verification.get("error", "내용 불일치")
+                        self.log(f"  웹 URL 내용 불일치: {item.get('source_url', '')} → {error}")
+                        item["_web_url_status"] = "CONTENT_MISMATCH"
+                        item["_web_url_error"] = error
+                        # URL은 유지하되 검수자가 판단하도록 마커 남김
+                    else:
+                        item["_web_url_status"] = "VALID"
+            self.log(f"일반 웹 URL 검증 완료: {web_count - web_invalidated}/{web_count}개 유효")
 
         return collected
 

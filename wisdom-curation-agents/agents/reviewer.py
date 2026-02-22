@@ -9,6 +9,7 @@ from typing import Optional
 
 from .base_agent import BaseAgent
 from models.task import Task
+from utils.url_validator import is_youtube_url, batch_verify_web_sources
 
 logger = logging.getLogger("wisdom-agents.reviewer")
 
@@ -30,6 +31,14 @@ class Reviewer(BaseAgent):
     ) -> dict:
         self.log(f"검수 시작: {len(wisdoms)}개 명언")
 
+        # 0단계: 웹 URL 프로그래밍 검증 (LLM 호출 전)
+        web_pre_rejects, wisdoms = await self._pre_verify_web_urls(wisdoms)
+
+        if not wisdoms and web_pre_rejects:
+            self.log(f"검수 완료: 웹 URL 사전 검증으로 전체 REJECT ({len(web_pre_rejects)}개)")
+            return {"reviews": web_pre_rejects}
+
+        # 1단계: LLM 기반 검수
         topic = task.topic if task else "일반"
         prompt = self._build_prompt(wisdoms, topic, task)
         messages = [{"role": "user", "content": prompt}]
@@ -50,23 +59,146 @@ class Reviewer(BaseAgent):
                 if isinstance(r, dict) and "index" not in r:
                     r["index"] = i
 
+            # 사전 REJECT 결과와 LLM 결과 병합
+            merged_reviews = self._merge_reviews(web_pre_rejects, reviews, len(web_pre_rejects) + len(wisdoms))
+
             # 통계
-            pass_c = sum(1 for r in reviews if r.get("verdict") == "PASS")
-            revise_c = sum(1 for r in reviews if r.get("verdict") == "REVISE")
-            reject_c = sum(1 for r in reviews if r.get("verdict") == "REJECT")
+            pass_c = sum(1 for r in merged_reviews if r.get("verdict") == "PASS")
+            revise_c = sum(1 for r in merged_reviews if r.get("verdict") == "REVISE")
+            reject_c = sum(1 for r in merged_reviews if r.get("verdict") == "REJECT")
             self.log(f"검수 완료: PASS={pass_c}, REVISE={revise_c}, REJECT={reject_c}")
 
-            return {"reviews": reviews}
+            return {"reviews": merged_reviews}
 
         except Exception as e:
             logger.error(f"검수 오류: {e}")
-            # 오류 시 전체 PASS
-            return {
-                "reviews": [
-                    {"index": i, "verdict": "PASS", "issues": [], "revision_instructions": ""}
-                    for i in range(len(wisdoms))
-                ]
-            }
+            # 오류 시: 사전 REJECT는 유지, 나머지는 PASS
+            fallback = web_pre_rejects + [
+                {"index": i, "verdict": "PASS", "issues": [], "revision_instructions": ""}
+                for i in range(len(wisdoms))
+            ]
+            return {"reviews": fallback}
+
+    async def _pre_verify_web_urls(self, wisdoms: list[dict]) -> tuple[list[dict], list[dict]]:
+        """
+        LLM 검수 전 웹 URL을 프로그래밍 방식으로 검증한다.
+
+        Returns:
+            (pre_reject_reviews, remaining_wisdoms)
+        """
+        web_indices = []
+        for i, w in enumerate(wisdoms):
+            source_url = w.get("source_url", "")
+            web_url_status = w.get("_web_url_status", "")
+
+            if web_url_status == "INACCESSIBLE":
+                web_indices.append((i, "ALREADY_INACCESSIBLE"))
+            elif web_url_status == "CONTENT_MISMATCH":
+                web_indices.append((i, "ALREADY_MISMATCH"))
+            elif source_url and source_url.startswith("http") and not is_youtube_url(source_url):
+                web_indices.append((i, "NEEDS_CHECK"))
+
+        if not web_indices:
+            return [], wisdoms
+
+        needs_check = [wisdoms[i] for i, status in web_indices if status == "NEEDS_CHECK"]
+        if needs_check:
+            self.log(f"웹 URL 사전 검증: {len(needs_check)}개")
+            await batch_verify_web_sources(needs_check)
+
+        pre_rejects = []
+        remaining = []
+        rejected_original_indices = set()
+
+        for orig_idx, status in web_indices:
+            w = wisdoms[orig_idx]
+
+            if status == "ALREADY_INACCESSIBLE":
+                error = w.get("_web_url_error", "URL 접근 불가")
+                pre_rejects.append({
+                    "original_index": orig_idx,
+                    "index": len(pre_rejects),
+                    "verdict": "REJECT",
+                    "issues": [f"웹 URL 접근 불가: {error}"],
+                    "revision_instructions": "",
+                })
+                rejected_original_indices.add(orig_idx)
+
+            elif status == "ALREADY_MISMATCH":
+                error = w.get("_web_url_error", "페이지 내용과 명언 출처 불일치")
+                pre_rejects.append({
+                    "original_index": orig_idx,
+                    "index": len(pre_rejects),
+                    "verdict": "REJECT",
+                    "issues": [f"웹 URL 내용 불일치: {error}"],
+                    "revision_instructions": "",
+                })
+                rejected_original_indices.add(orig_idx)
+
+            elif status == "NEEDS_CHECK":
+                verification = w.pop("_web_url_verification", None)
+                if verification:
+                    overall_status = verification.get("overall_status", "VALID")
+                    if overall_status == "INACCESSIBLE":
+                        error = verification.get("error", "URL 접근 불가")
+                        pre_rejects.append({
+                            "original_index": orig_idx,
+                            "index": len(pre_rejects),
+                            "verdict": "REJECT",
+                            "issues": [f"웹 URL 접근 불가: {error}"],
+                            "revision_instructions": "",
+                        })
+                        rejected_original_indices.add(orig_idx)
+                    elif overall_status == "CONTENT_MISMATCH":
+                        error = verification.get("error", "내용 불일치")
+                        pre_rejects.append({
+                            "original_index": orig_idx,
+                            "index": len(pre_rejects),
+                            "verdict": "REJECT",
+                            "issues": [f"웹 URL 내용 불일치: {error}"],
+                            "revision_instructions": "",
+                        })
+                        rejected_original_indices.add(orig_idx)
+                    else:
+                        w["_web_url_status"] = "VALID"
+
+        for i, w in enumerate(wisdoms):
+            if i not in rejected_original_indices:
+                w.pop("_web_url_status", None)
+                w.pop("_web_url_error", None)
+                remaining.append(w)
+
+        if pre_rejects:
+            self.log(f"웹 URL 사전 REJECT: {len(pre_rejects)}개")
+
+        return pre_rejects, remaining
+
+    @staticmethod
+    def _merge_reviews(
+        pre_rejects: list[dict],
+        llm_reviews: list[dict],
+        total_count: int,
+    ) -> list[dict]:
+        """사전 REJECT 결과와 LLM 검수 결과를 원래 인덱스 순서로 병합한다."""
+        if not pre_rejects:
+            return llm_reviews
+
+        merged = []
+        pre_reject_map = {r["original_index"]: r for r in pre_rejects}
+        llm_idx = 0
+
+        for orig_idx in range(total_count):
+            if orig_idx in pre_reject_map:
+                review = pre_reject_map[orig_idx].copy()
+                review["index"] = orig_idx
+                merged.append(review)
+            elif llm_idx < len(llm_reviews):
+                review = llm_reviews[llm_idx].copy()
+                review["index"] = orig_idx
+                merged.append(review)
+                llm_idx += 1
+
+        return merged
 
     def get_passed(self, wisdoms: list[dict], reviews: list[dict]) -> list[dict]:
         passed = []
@@ -99,9 +231,10 @@ class Reviewer(BaseAgent):
 1. 1개 명언 = 1개 주제
 2. 주제 '{topic}' 적합성
 3. 출처 명확성 (구체적 출처명 필수)
-4. 비퍼블릭 도메인 도서: 원문 2문장, 번역 재구성 의역, 해설 4~5문장
-5. 번역 품질, 어투('-다' 체), 해설 품질(150~250자)
-6. 카테고리/mood 유효성
+4. 웹 URL 검증: _web_url_status 필드 확인. "INACCESSIBLE"→REJECT (URL 접근 불가), "CONTENT_MISMATCH"→REJECT (URL은 열리나 발언자 관련 내용 없음), "VALID"→통과
+5. 비퍼블릭 도메인 도서: 원문 2문장, 번역 재구성 의역, 해설 4~5문장
+6. 번역 품질, 어투('-다' 체), 해설 품질(150~250자)
+7. 카테고리/mood 유효성
 
 ■ 카테고리: business, marketing, leadership, self-improvement, philosophy, wealth, creativity, psychology, relationships
 ■ Mood: execution, growth, challenge, relationships, motivation, new-goal, comfort, contemplation, anxiety, habits, meaning

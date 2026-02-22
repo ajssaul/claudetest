@@ -10,6 +10,7 @@ from typing import Optional
 
 from .base_agent import BaseAgent
 from models.task import Task
+from utils.url_validator import batch_verify_web_sources
 
 logger = logging.getLogger("wisdom-agents.collector")
 
@@ -44,8 +45,38 @@ class Collector(BaseAgent):
 
         if not collected:
             self.log("수집 실패: 0개")
-        else:
-            self.log(f"수집 완료: {len(collected)}개")
+            return collected
+
+        self.log(f"수집 완료: {len(collected)}개")
+
+        # 웹 URL 검증: 접근 가능 여부 + 내용 관련성 확인
+        web_count = sum(
+            1 for c in collected
+            if c.get("source_url", "") and c["source_url"].startswith("http")
+        )
+        if web_count > 0:
+            self.log(f"웹 URL 검증 시작: {web_count}개")
+            collected = await batch_verify_web_sources(collected)
+            web_invalidated = 0
+            for item in collected:
+                verification = item.pop("_web_url_verification", None)
+                if verification:
+                    status = verification.get("overall_status", "VALID")
+                    if status == "INACCESSIBLE":
+                        error = verification.get("error", "접근 불가")
+                        self.log(f"  웹 URL 접근 불가: {item.get('source_url', '')} → {error}")
+                        item["_web_url_status"] = "INACCESSIBLE"
+                        item["_web_url_error"] = error
+                        item["source_url"] = ""  # 접근 불가 URL 제거
+                        web_invalidated += 1
+                    elif status == "CONTENT_MISMATCH":
+                        error = verification.get("error", "내용 불일치")
+                        self.log(f"  웹 URL 내용 불일치: {item.get('source_url', '')} → {error}")
+                        item["_web_url_status"] = "CONTENT_MISMATCH"
+                        item["_web_url_error"] = error
+                    else:
+                        item["_web_url_status"] = "VALID"
+            self.log(f"웹 URL 검증 완료: {web_count - web_invalidated}/{web_count}개 유효")
 
         return collected
 

@@ -12,7 +12,7 @@ from typing import Optional
 
 import httpx
 
-logger = logging.getLogger("quote-agents.url_validator")
+logger = logging.getLogger("wisdom-agents.url_validator")
 
 # YouTube URL에서 video ID를 추출하는 패턴들
 _YT_PATTERNS = [
